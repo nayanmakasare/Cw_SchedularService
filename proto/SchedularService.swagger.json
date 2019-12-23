@@ -1,0 +1,406 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "SchedularService.proto",
+    "version": "version not set"
+  },
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/createSchedule": {
+      "post": {
+        "summary": "Schedular CRUD",
+        "operationId": "CreateSchedule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/SchedularServiceSchedule"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SchedularServiceSchedule"
+            }
+          }
+        ],
+        "tags": [
+          "SchedularService"
+        ]
+      }
+    },
+    "/deleteSchedule": {
+      "post": {
+        "operationId": "DeleteSchedule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/SchedularServiceDeleteScheduleResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SchedularServiceDeleteScheduleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SchedularService"
+        ]
+      }
+    },
+    "/getSchedule": {
+      "post": {
+        "operationId": "GetSchedule",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "$ref": "#/x-stream-definitions/SchedularServiceSchedule"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SchedularServiceGetScheduleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SchedularService"
+        ]
+      }
+    },
+    "/refreshSchedule": {
+      "post": {
+        "summary": "Refresh manupilation",
+        "operationId": "RefreshSchedule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/SchedularServiceRefreshScheduleResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SchedularServiceRefreshScheduleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SchedularService"
+        ]
+      }
+    },
+    "/updateSchedule": {
+      "post": {
+        "operationId": "UpdateSchedule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/SchedularServiceSchedule"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SchedularServiceSchedule"
+            }
+          }
+        ],
+        "tags": [
+          "SchedularService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "SchedularServiceCarousel": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "packageName": {
+          "type": "string"
+        },
+        "imageUrl": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "SchedularServiceDeleteScheduleRequest": {
+      "type": "object",
+      "properties": {
+        "vendor": {
+          "type": "string"
+        },
+        "brand": {
+          "type": "string"
+        },
+        "startTime": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "endTime": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "SchedularServiceDeleteScheduleResponse": {
+      "type": "object",
+      "properties": {
+        "isSuccessful": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      }
+    },
+    "SchedularServiceGetScheduleRequest": {
+      "type": "object",
+      "properties": {
+        "vendor": {
+          "type": "string"
+        },
+        "brand": {
+          "type": "string"
+        }
+      }
+    },
+    "SchedularServicePage": {
+      "type": "object",
+      "properties": {
+        "pageName": {
+          "type": "string"
+        },
+        "pageIndex": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "pageLogo": {
+          "type": "string"
+        },
+        "row": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SchedularServiceRow"
+          }
+        },
+        "carousel": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SchedularServiceCarousel"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "SchedularServiceRefreshScheduleRequest": {
+      "type": "object"
+    },
+    "SchedularServiceRefreshScheduleResponse": {
+      "type": "object",
+      "properties": {
+        "rowFilters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/SchedularServiceRowFilterValue"
+          }
+        }
+      }
+    },
+    "SchedularServiceRow": {
+      "type": "object",
+      "properties": {
+        "rowlayout": {
+          "$ref": "#/definitions/SchedularServiceRowLayout"
+        },
+        "rowName": {
+          "type": "string"
+        },
+        "rowIndex": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "rowFilters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/SchedularServiceRowFilterValue"
+          }
+        },
+        "rowSort": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "rowTileIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rowType": {
+          "$ref": "#/definitions/SchedularServiceRowType"
+        }
+      },
+      "title": "-1 for sort descending and 1 for sort ascending,"
+    },
+    "SchedularServiceRowFilterValue": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "SchedularServiceRowLayout": {
+      "type": "string",
+      "enum": [
+        "Landscape",
+        "Portrait",
+        "Square",
+        "Circle"
+      ],
+      "default": "Landscape"
+    },
+    "SchedularServiceRowType": {
+      "type": "string",
+      "enum": [
+        "Editorial",
+        "Recommendation",
+        "Dynamic"
+      ],
+      "default": "Editorial"
+    },
+    "SchedularServiceSchedule": {
+      "type": "object",
+      "properties": {
+        "brand": {
+          "type": "string"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "startTime": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "endTime": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "pages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SchedularServicePage"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "type_url": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "runtimeStreamError": {
+      "type": "object",
+      "properties": {
+        "grpc_code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "http_code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "http_status": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    }
+  },
+  "x-stream-definitions": {
+    "SchedularServiceSchedule": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "$ref": "#/definitions/SchedularServiceSchedule"
+        },
+        "error": {
+          "$ref": "#/definitions/runtimeStreamError"
+        }
+      },
+      "title": "Stream result of SchedularServiceSchedule"
+    }
+  }
+}

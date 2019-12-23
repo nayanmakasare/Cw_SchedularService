@@ -1,0 +1,29 @@
+version: '3'
+services:
+  schedular-service:
+    build: .
+    ports:
+      - 7776:7776
+      - 7775:7775
+    links:
+      - schedular-mongodb
+#      - schedular-redis
+    hostname: cloudwalker.services.tv
+
+  schedular-mongodb:
+    image: mongo:latest
+    volumes:
+      - /home/nayan/nayan_workspace/docker_volumns/mongo/schedular/:/data/db
+    ports:
+      - 27017:27017
+    command: mongod
+
+#  schedular-redis:
+#    image: redis:latest
+#    environment:
+#      - ALLOW_EMPTY_PASSWORD=yes
+#    volumes:
+#      - /home/nayan/nayan_workspace/docker_volumns/redis/schedular/:/data/
+#    ports:
+#      - 6377:6379
+#    command: ["redis-server", "--appendonly", "yes"]
