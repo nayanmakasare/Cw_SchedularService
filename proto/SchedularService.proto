@@ -74,8 +74,6 @@ message Carousel{
 
 
 
-
-
 // -1 for sort descending and 1 for sort ascending,
 message Row{
     RowLayout rowlayout = 1;
@@ -119,27 +117,55 @@ message DeleteScheduleRequest {
     int32 endTime = 4;
 }
 
-message DeleteScheduleResponse{
+message DeleteScheduleResponse {
     bool isSuccessful = 1;
 }
 
 
 //Refresh logic
-message RefreshScheduleRequest{
+message RefreshScheduleRequest {
 }
 
 
-message RefreshScheduleResponse{
+message RefreshScheduleResponse {
     map<string, RowFilterValue> rowFilters = 1;
 }
 
+//Helper Messages
+message PrimePages {
+    string pageName = 1;
+    string pageEndpoint = 2;
+}
 
-//Delivery Messages
+message HelperPage {
+    string carouselEndpoint = 1;
+    repeated string rowContentEndpoint = 2;
+}
+
+message HelperCarosuel {
+    string imageUrl = 1;
+    string target = 2;
+    string title = 3;
+    string packageName = 4;
+}
 
 
+message HelperContentTile {
+    string title = 1;
+    repeated string portrait = 2;
+    repeated string poster = 3;
+    string contentId = 4;
+    bool isDetailPage = 5;
+    repeated string target = 6;
+    string packageName = 7;
+}
 
-
-
+message HelperRow {
+    string rowName = 1;
+    RowLayout rowlayout = 2;
+    string rowBaseUrl = 3;
+    repeated HelperContentTile contentTile = 4;
+}
 
 
 

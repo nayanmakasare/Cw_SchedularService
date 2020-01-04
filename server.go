@@ -7,13 +7,13 @@ import (
 	"fmt"
 	codecs "github.com/amsokol/mongo-go-driver-protobuf"
 	"github.com/go-redis/redis"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"log"
 	"net"
 	"net/http"
@@ -22,9 +22,10 @@ import (
 )
 
 const (
+	defaultHost          = "mongodb://nayan:tlwn722n@cluster0-shard-00-00-8aov2.mongodb.net:27017,cluster0-shard-00-01-8aov2.mongodb.net:27017,cluster0-shard-00-02-8aov2.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true&w=majority"
 	developmentMongoHost = "mongodb://192.168.1.9:27017"
-	schedularMongoHost = "mongodb://192.168.1.143:27017"
-	schedularRedisHost = "192.168.1.143:6379"
+	schedularMongoHost   = "mongodb://192.168.1.143:27017"
+	schedularRedisHost   = "192.168.1.143:6379"
 )
 
 // private type for Context keys
@@ -34,19 +35,16 @@ const (
 	clientIDKey contextKey = iota
 )
 
-
 var scheduleCollection, tileCollection *mongo.Collection
 var tileRedis *redis.Client
-
 
 // Multiple init() function
 func init() {
 	fmt.Println("Welcome to init() function")
-	scheduleCollection = getMongoCollection("cloudwalker", "schedule", schedularMongoHost);
-	tileCollection = getMongoCollection("cwtx2devel", "tiles", developmentMongoHost);
-	tileRedis = getRedisClient(schedularRedisHost);
+	scheduleCollection = getMongoCollection("cloudwalker", "schedule", defaultHost)
+	tileCollection = getMongoCollection("cwtx2devel", "tiles", developmentMongoHost)
+	tileRedis = getRedisClient(schedularRedisHost)
 }
-
 
 func credMatcher(headerName string) (mdName string, ok bool) {
 	if headerName == "Login" || headerName == "Password" {
@@ -77,7 +75,7 @@ func unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServ
 	if !ok {
 		return nil, fmt.Errorf("unable to cast the server")
 	}
-	clientID , err := authenticateClient(ctx, s)
+	clientID, err := authenticateClient(ctx, s)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +88,7 @@ func startGRPCServer(address, certFile, keyFile string) error {
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		return fmt.Errorf("failed to listen: %v", err)
-	}  // create a server instance
+	} // create a server instance
 	s := apihandler.Server{
 		scheduleCollection,
 		tileRedis,
@@ -101,16 +99,15 @@ func startGRPCServer(address, certFile, keyFile string) error {
 	creds, err := credentials.NewServerTLSFromFile(certFile, keyFile)
 	if err != nil {
 		return fmt.Errorf("could not load TLS keys: %s", err)
-	}  // Create an array of gRPC options with the credentials
+	} // Create an array of gRPC options with the credentials
 	_ = []grpc.ServerOption{grpc.Creds(creds), grpc.UnaryInterceptor(unaryInterceptor)}
-
 
 	// create a gRPC server object
 	//grpcServer := grpc.NewServer(opts...)
 
 	// attach the Ping service to the server
-	grpcServer := grpc.NewServer()  // attach the Ping service to the server
-	pb.RegisterSchedularServiceServer(grpcServer, &s)  // start the server
+	grpcServer := grpc.NewServer()                    // attach the Ping service to the server
+	pb.RegisterSchedularServiceServer(grpcServer, &s) // start the server
 	log.Printf("starting HTTP/2 gRPC server on %s", address)
 	if err := grpcServer.Serve(lis); err != nil {
 		return fmt.Errorf("failed to serve: %s", err)
@@ -130,8 +127,7 @@ func startRESTServer(address, grpcAddress, certFile string) error {
 	//
 	//opts := []grpc.DialOption{grpc.WithTransportCredentials(creds)}  // Register ping
 
-
-	opts := []grpc.DialOption{grpc.WithInsecure()}  // Register ping
+	opts := []grpc.DialOption{grpc.WithInsecure()} // Register ping
 	err := pb.RegisterSchedularServiceHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
 	if err != nil {
 		return fmt.Errorf("could not register service Ping: %s", err)
@@ -142,18 +138,18 @@ func startRESTServer(address, grpcAddress, certFile string) error {
 	return nil
 }
 
-func getMongoCollection(dbName, collectionName, mongoHost string )  *mongo.Collection {
+func getMongoCollection(dbName, collectionName, mongoHost string) *mongo.Collection {
 	// Register custom codecs for protobuf Timestamp and wrapper types
 	reg := codecs.Register(bson.NewRegistryBuilder()).Build()
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	mongoClient, err :=  mongo.Connect(ctx, options.Client().ApplyURI(mongoHost), options.Client().SetRegistry(reg))
+	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoHost), options.Client().SetRegistry(reg))
 	if err != nil {
 		log.Fatal(err)
 	}
 	return mongoClient.Database(dbName).Collection(collectionName)
 }
 
-func getRedisClient(redisHost string ) *redis.Client {
+func getRedisClient(redisHost string) *redis.Client {
 	client := redis.NewClient(&redis.Options{
 		Addr:     redisHost,
 		Password: "", // no password set
@@ -166,7 +162,7 @@ func getRedisClient(redisHost string ) *redis.Client {
 	return client
 }
 
-func main()  {
+func main() {
 	//grpcAddress := fmt.Sprintf("%s:%d", "cloudwalker.services.tv", 7775)
 	//restAddress := fmt.Sprintf("%s:%d", "cloudwalker.services.tv", 7776)
 
@@ -191,16 +187,13 @@ func main()  {
 		}
 	}()
 
-
 	// registering a cron job
 	//registeringCron()
-
 
 	// infinite loop
 	log.Printf("Entering infinite loop")
 	select {}
 }
-
 
 //func registeringCron(){
 //	// make and launching cron job
@@ -216,8 +209,6 @@ func main()  {
 //	//stop cron job on exit
 //	defer c.Stop()
 //}
-
-
 
 //func revampingSchedule(){
 //

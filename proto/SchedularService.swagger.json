@@ -237,7 +237,8 @@
       }
     },
     "SchedularServiceRefreshScheduleRequest": {
-      "type": "object"
+      "type": "object",
+      "title": "Refresh logic"
     },
     "SchedularServiceRefreshScheduleResponse": {
       "type": "object",
