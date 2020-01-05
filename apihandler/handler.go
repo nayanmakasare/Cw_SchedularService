@@ -22,58 +22,6 @@ type Server struct {
 	TileCollection      *mongo.Collection
 }
 
-//type primePage struct {
-//	pageName string `json:"pageName"`
-//	pageEndpoint string `json:"pageEndpoint"`
-//}
-//
-//func (m *primePage) MarshalBinary() ([]byte, error) {
-//	return json.Marshal(m)
-//}
-//
-//type Page struct {
-//	carouselEndpoint string  `json:"carouselEndpoint"`
-//	rowContentEndpoint []string  `json:"rowContentEndpoint"`
-//}
-//
-//func (m *Page) MarshalBinary() ([]byte, error) {
-//	return json.Marshal(m)
-//}
-//
-//type carosuel struct{
-//	imageUrl string `json:"imageUrl"`
-//	target string `json:"target"`
-//	title string `json:"title"`
-//	packageName string `json:"packageName"`
-//}
-//
-//func (m *carosuel) MarshalBinary() ([]byte, error) {
-//	return json.Marshal(m)
-//}
-//
-
-type IntermTile struct {
-	ID struct {
-		CreatedAt struct {
-			Date struct {
-				NumberLong string `json:"$numberLong"`
-			} `json:"$date"`
-		} `json:"created_at"`
-		ReleaseDate string `json:"releaseDate"`
-		Year        string `json:"year"`
-		Rating      struct {
-			NumberDouble string `json:"$numberDouble"`
-		} `json:"rating"`
-		Title        string   `json:"title"`
-		ContentID    string   `json:"contentId"`
-		PackageName  string   `json:"packageName"`
-		Portrait     []string `json:"portrait"`
-		Poster       []string `json:"poster"`
-		IsDetailPage bool     `json:"isDetailPage"`
-		Target       []string `json:"target"`
-	} `json:"_id"`
-}
-
 type Temp struct {
 	ID struct {
 		CreatedAt struct {
@@ -94,20 +42,6 @@ type Temp struct {
 		Target       []string `json:"target"`
 	} `json:"contentTile"`
 }
-
-//
-//
-//type row struct {
-//	rowName string `json:"rowName"`
-//	rowLayout pb.RowLayout `json:"rowLayout"`
-//	rowBaseUrl string `json:"rowBaseUrl"`
-//	contentTile []contentTile `json:"contentTiles"`
-//}
-//
-//
-//func (m *row) MarshalBinary() ([]byte, error) {
-//	return json.Marshal(m)
-//}
 
 func (s *Server) CreateSchedule(ctx context.Context, req *pb.Schedule) (*pb.Schedule, error) {
 
@@ -397,7 +331,6 @@ func pipelineMaker(rowValues *pb.Row) mongo.Pipeline {
 			{"isDetailPage", "$content.detailPage"},
 			{"packageName", "$content.package"},
 			{"target", "$content.target"},}}})
-
 
 	} else {
 		for key, value := range rowValues.RowFilters {
