@@ -3,7 +3,6 @@ package apihandler
 import (
 	pb "Cw_Schedule/proto"
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/go-redis/redis"
 	"github.com/golang/protobuf/proto"
@@ -75,18 +74,25 @@ type IntermTile struct {
 	} `json:"_id"`
 }
 
-type contentTile struct {
-	title        string   `json:"_id.title"`
-	portrait     []string `json:"_id.portrait"`
-	poster       []string `json:"_id.poster"`
-	contentId    string   `json:"_id.contentId"`
-	isDetailPage bool     `json:"_id.isDetailPage"`
-	target       []string `json:"_id.target"`
-	packageName  string   `json:"_id.packageName"`
-}
-
-func (m *contentTile) MarshalBinary() ([]byte, error) {
-	return json.Marshal(m)
+type Temp struct {
+	ID struct {
+		CreatedAt struct {
+			Date struct {
+				NumberLong string `json:"$numberLong"`
+			} `json:"$date"`
+		} `json:"created_at"`
+		ReleaseDate string `json:"releaseDate"`
+		Year        string `json:"year"`
+	} `json:"_id"`
+	ContentTile []struct {
+		Title        string   `json:"title"`
+		Portrait     []string `json:"portrait"`
+		Poster       []string `json:"poster"`
+		ContentID    string   `json:"contentId"`
+		IsDetailPage bool     `json:"isDetailPage"`
+		PackageName  string   `json:"packageName"`
+		Target       []string `json:"target"`
+	} `json:"contentTile"`
 }
 
 //
@@ -280,101 +286,23 @@ func (s *Server) RefreshSchedule(ctx context.Context, req *pb.RefreshScheduleReq
 
 			var contentTiles []*pb.HelperContentTile
 			defer tileCur.Close(ctx)
-			//var result bson.M
 
-			counter := 0
-
+			var contentTile pb.HelperContentTile
+			var temp Temp
 			for tileCur.Next(context.Background()) {
-				counter++
-
-				eles, err := tileCur.Current.Elements()
+				err = tileCur.Decode(&temp)
 				if err != nil {
-					log.Fatal(err)
+					return nil, err
 				}
+				contentTile.ContentId = temp.ContentTile[0].ContentID
+				contentTile.IsDetailPage = temp.ContentTile[0].IsDetailPage
+				contentTile.PackageName = temp.ContentTile[0].PackageName
+				contentTile.Poster = temp.ContentTile[0].Poster
+				contentTile.Portrait = temp.ContentTile[0].Portrait
+				contentTile.Target = temp.ContentTile[0].Target
 
-				var contentTile pb.HelperContentTile
-
-				for _, v := range eles {
-
-					if v.Value().Type == bson.TypeEmbeddedDocument {
-						raw_result, ok := v.Value().DocumentOK()
-						if ok {
-							s, err := raw_result.Elements()
-							if err != nil {
-								log.Fatal(err)
-							}
-							for _, w := range s {
-
-								switch w.Key() {
-								case "title":
-									{
-										contentTile.Title = w.Value().StringValue()
-									}
-									break
-								case "contentId":
-									{
-										contentTile.ContentId = w.Value().StringValue()
-									}
-									break
-								case "packageName":
-									{
-										contentTile.PackageName = w.Value().StringValue()
-									}
-									break
-								case "portrait":
-									{
-										arrVals, err := w.Value().Array().Values()
-										if err != nil {
-											log.Fatal(err)
-										}
-										var temp []string
-										for _, a := range arrVals {
-											temp = append(temp, a.StringValue())
-										}
-										contentTile.Portrait = temp
-										temp = nil
-									}
-									break
-								case "poster":
-									{
-										arrVals, err := w.Value().Array().Values()
-										if err != nil {
-											log.Fatal(err)
-										}
-										var temp []string
-										for _, a := range arrVals {
-											temp = append(temp, a.StringValue())
-										}
-										contentTile.Poster = temp
-										temp = nil
-									}
-									break
-								case "isDetailPage":
-									contentTile.IsDetailPage = w.Value().Boolean()
-									break
-								case "target":
-									{
-										arrVals, err := w.Value().Array().Values()
-										if err != nil {
-											log.Fatal(err)
-										}
-										var temp []string
-										for _, a := range arrVals {
-											temp = append(temp, a.StringValue())
-										}
-										contentTile.Target = temp
-										temp = nil
-									}
-									break
-								}
-							}
-						}
-					}
-				}
 				contentTiles = append(contentTiles, &contentTile)
 			}
-
-			//log.Println(pageValue.PageName, " tile count  ======>   ", counter, "rowKey =============>   ", rowKey)
 
 			log.Println("RowKey  ===============> ", rowKey)
 
@@ -459,6 +387,18 @@ func pipelineMaker(rowValues *pb.Row) mongo.Pipeline {
 	if rowValues.RowType == pb.RowType_Editorial {
 		// Adding stages 1
 		pipeline = append(pipeline, bson.D{{"$match", bson.D{{"ref_id", bson.D{{"$in", rowValues.RowTileIds}}}}}})
+
+
+		//Adding stage 2
+		pipeline = append(pipeline, bson.D{{"$project", bson.D{{"title", "$metadata.title"},
+			{"portrait", "$posters.portrait",},
+			{"poster", "$posters.landscape"},
+			{"contentId", "$ref_id"},
+			{"isDetailPage", "$content.detailPage"},
+			{"packageName", "$content.package"},
+			{"target", "$content.target"},}}})
+
+
 	} else {
 		for key, value := range rowValues.RowFilters {
 			filterArray = append(filterArray, bson.E{key, bson.D{{"$in", value.Values}}})
@@ -471,15 +411,15 @@ func pipelineMaker(rowValues *pb.Row) mongo.Pipeline {
 			{"created_at", "$created_at"},
 			{"releaseDate", "$metadata.releaseDate"},
 			{"year", "$metadata.year"},
-			{"rating", "$metadata.rating"},
-			{"title", "$metadata.title"},
-			{"contentId", "$ref_id"},
-			{"packageName", "$content.package"},
-			{"portrait", "$posters.portrait"},
-			{"poster", "$posters.landscape"},
-			{"isDetailPage", "$content.detailPage"},
-			{"target", "$content.target"},
-		}}}}}
+		}}, {"contentTile", bson.D{{"$push", bson.D{
+				{"title", "$metadata.title"},
+				{"portrait", "$posters.portrait",},
+				{"poster", "$posters.landscape"},
+				{"contentId", "$ref_id"},
+				{"isDetailPage", "$content.detailPage"},
+				{"packageName", "$content.package"},
+				{"target", "$content.target"},
+		}}}}}}}
 
 		pipeline = append(pipeline, stage2)
 
@@ -492,22 +432,6 @@ func pipelineMaker(rowValues *pb.Row) mongo.Pipeline {
 		//stage 3
 		stage3 := bson.D{{"$sort", sortArray}}
 		pipeline = append(pipeline, stage3)
-
-		////stage4
-		//stage4 := bson.D{{"$project", bson.D{
-		//												{"created_at", 0},
-		//												{"releaseDate", 0},
-		//												{"year", 0},
-		//												{"rating", 0},
-		//												{"title", 1},
-		//												{"target", 1},
-		//												{"isDetailPage", 1},
-		//												{"poster", 1},
-		//												{"portrait", 1},
-		//												{"contentId", 1},
-		//												{"packageName", 1}}}}
-		//
-		//pipeline = append(pipeline, stage4)
 	}
 
 	return pipeline
