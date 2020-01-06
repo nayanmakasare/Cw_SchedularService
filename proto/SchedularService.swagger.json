@@ -2,7 +2,7 @@
   "swagger": "2.0",
   "info": {
     "title": "SchedularService.proto",
-    "version": "1.0.0"
+    "version": "version not set"
   },
   "consumes": [
     "application/json"
@@ -145,23 +145,6 @@
     }
   },
   "definitions": {
-    "SchedularServiceCarousel": {
-      "type": "object",
-      "properties": {
-        "target": {
-          "type": "string"
-        },
-        "packageName": {
-          "type": "string"
-        },
-        "imageUrl": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      }
-    },
     "SchedularServiceDeleteScheduleRequest": {
       "type": "object",
       "properties": {
@@ -201,93 +184,26 @@
         }
       }
     },
-    "SchedularServicePage": {
-      "type": "object",
-      "properties": {
-        "pageName": {
-          "type": "string"
-        },
-        "pageIndex": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "pageLogo": {
-          "type": "string"
-        },
-        "row": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/SchedularServiceRow"
-          }
-        },
-        "carousel": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/SchedularServiceCarousel"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      }
-    },
     "SchedularServiceRefreshScheduleRequest": {
       "type": "object",
+      "properties": {
+        "vendor": {
+          "type": "string"
+        },
+        "brand": {
+          "type": "string"
+        }
+      },
       "title": "Refresh logic"
     },
     "SchedularServiceRefreshScheduleResponse": {
       "type": "object",
       "properties": {
-        "rowFilters": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/SchedularServiceRowFilterValue"
-          }
+        "isSuccessful": {
+          "type": "boolean",
+          "format": "boolean"
         }
       }
-    },
-    "SchedularServiceRow": {
-      "type": "object",
-      "properties": {
-        "rowlayout": {
-          "$ref": "#/definitions/SchedularServiceRowLayout"
-        },
-        "rowName": {
-          "type": "string"
-        },
-        "rowIndex": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "rowFilters": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/SchedularServiceRowFilterValue"
-          }
-        },
-        "rowSort": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "rowTileIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "rowType": {
-          "$ref": "#/definitions/SchedularServiceRowType"
-        }
-      },
-      "title": "-1 for sort descending and 1 for sort ascending,"
     },
     "SchedularServiceRowFilterValue": {
       "type": "object",
@@ -339,7 +255,62 @@
         "pages": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/SchedularServicePage"
+            "$ref": "#/definitions/SchedularServiceSchedulePage"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "baseUrl": {
+          "type": "string"
+        }
+      }
+    },
+    "SchedularServiceScheduleCarousel": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "packageName": {
+          "type": "string"
+        },
+        "imageUrl": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "SchedularServiceSchedulePage": {
+      "type": "object",
+      "properties": {
+        "pageName": {
+          "type": "string"
+        },
+        "pageIndex": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "pageLogo": {
+          "type": "string"
+        },
+        "row": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SchedularServiceScheduleRow"
+          }
+        },
+        "carousel": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SchedularServiceScheduleCarousel"
           }
         },
         "createdAt": {
@@ -351,6 +322,44 @@
           "format": "date-time"
         }
       }
+    },
+    "SchedularServiceScheduleRow": {
+      "type": "object",
+      "properties": {
+        "rowlayout": {
+          "$ref": "#/definitions/SchedularServiceRowLayout"
+        },
+        "rowName": {
+          "type": "string"
+        },
+        "rowIndex": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "rowFilters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/SchedularServiceRowFilterValue"
+          }
+        },
+        "rowSort": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "rowTileIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rowType": {
+          "$ref": "#/definitions/SchedularServiceRowType"
+        }
+      },
+      "title": "-1 for sort descending and 1 for sort ascending,"
     },
     "protobufAny": {
       "type": "object",

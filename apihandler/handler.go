@@ -60,6 +60,7 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.Schedule) (*pb.Sche
 		if err != nil {
 			return nil, status.Error(codes.Internal, fmt.Sprintf("Mongo error while inserting schedule %s ", err.Error()))
 		}
+		go s.RefreshingWorker(req, ctx)
 		return req, nil
 	}
 	return nil, status.Error(codes.AlreadyExists, "schedule already exits please call update api instead")
@@ -121,13 +122,23 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.Schedule) (*pb.Sche
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Error while updating Schedule in DB for brand  %s and vendor %s at time hour %d ", req.Brand, req.Vendor, hours))
 	}
+
+	go s.RefreshingWorker(&schedule, ctx)
+
 	return &schedule, nil
 }
 
 func (s *Server) DeleteSchedule(ctx context.Context, req *pb.DeleteScheduleRequest) (*pb.DeleteScheduleResponse, error) {
 	hours, _, _ := time.Now().Clock()
 	//making fulter query where we find the schedule in the time frame for eg : if current timing is 11 o'clock  and we have schedule 9 to 12 then it will be served.
-	filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}, {"starttime": req.GetStartTime()}, {"endtime": req.GetEndTime()}}}
+	//filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}, {"starttime": req.GetStartTime()}, {"endtime": req.GetEndTime()}}}
+
+
+
+	// only temp
+	filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}}}
+
+
 	deleteResult := s.SchedularCollection.FindOneAndDelete(ctx, filter)
 
 	if deleteResult.Err() != nil {
@@ -138,181 +149,28 @@ func (s *Server) DeleteSchedule(ctx context.Context, req *pb.DeleteScheduleReque
 
 func (s *Server) RefreshSchedule(ctx context.Context, req *pb.RefreshScheduleRequest) (*pb.RefreshScheduleResponse, error) {
 
-	log.Println("hit 1")
-
-	filter := bson.M{"$and": []bson.M{{"brand": "shinko"}, {"vendor": "cvte"}}}
+	filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}}}
 
 	findResult := s.SchedularCollection.FindOne(ctx, filter)
 	if findResult.Err() != nil {
-		return nil, findResult.Err()
+		return nil, status.Error(codes.NotFound, fmt.Sprintf("Schedule Not found ", findResult.Err()))
 	}
 	var schedule pb.Schedule
 	err := findResult.Decode(&schedule)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Not able to decode the schedule ", err))
 	}
-
-	primeKey := fmt.Sprintf("%s:%s:cloudwalkerPrimePages", formatString(schedule.Vendor), formatString(schedule.Brand))
-
-	log.Println("Prime Key =============>  ", primeKey)
-
-	//pages
-	for _, pageValue := range schedule.Pages {
-
-		var pageObj pb.HelperPage
-
-		// TODO Adding Carousel To Redis..... DONE !!!
-		if len(pageValue.Carousel) > 0 {
-
-			carouselKey := fmt.Sprintf("%s:%s:%s:carousel", formatString(schedule.Vendor),
-				formatString(schedule.Brand),
-				formatString(pageValue.PageName))
-
-			log.Println("carosuel Key ==================>  ", carouselKey)
-
-			// getting carousel
-			for _, carouselValues := range pageValue.Carousel {
-
-				carobj := pb.HelperCarosuel{
-					ImageUrl:    carouselValues.ImageUrl,
-					Target:      carouselValues.Target,
-					Title:       carouselValues.Title,
-					PackageName: carouselValues.PackageName,
-				}
-
-				resultByteArray, err := proto.Marshal(&carobj)
-				if err != nil {
-					return nil, err
-				}
-
-				// setting page carousel in redis
-				result := s.RedisConnection.SAdd(carouselKey, resultByteArray)
-
-				if result.Err() != nil {
-					log.Fatal(result.Err())
-				}
-			}
-
-			pageObj.CarouselEndpoint = fmt.Sprintf("/carousel/%s/%s/%s", formatString(schedule.Vendor),
-				formatString(schedule.Brand),
-				formatString(pageValue.PageName))
-		}
-
-		//TODO Adding Rows to Redis.....Done !!
-		var rowPathSet []string
-
-		// getting rows
-		for _, rowValues := range pageValue.GetRow() {
-
-			rowKey := fmt.Sprintf("%s:%s:%s:%s", formatString(schedule.Vendor),
-				formatString(schedule.Brand),
-				formatString(pageValue.PageName),
-				formatString(rowValues.RowName))
-
-			// making stages
-			pipeline := pipelineMaker(rowValues)
-
-			// creating aggregation query
-			tileCur, err := s.TileCollection.Aggregate(context.Background(), pipeline)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			var contentTiles []*pb.HelperContentTile
-			defer tileCur.Close(ctx)
-
-			var contentTile pb.HelperContentTile
-			var temp Temp
-			for tileCur.Next(context.Background()) {
-				err = tileCur.Decode(&temp)
-				if err != nil {
-					return nil, err
-				}
-				contentTile.ContentId = temp.ContentTile[0].ContentID
-				contentTile.IsDetailPage = temp.ContentTile[0].IsDetailPage
-				contentTile.PackageName = temp.ContentTile[0].PackageName
-				contentTile.Poster = temp.ContentTile[0].Poster
-				contentTile.Portrait = temp.ContentTile[0].Portrait
-				contentTile.Target = temp.ContentTile[0].Target
-
-				contentTiles = append(contentTiles, &contentTile)
-			}
-
-			log.Println("RowKey  ===============> ", rowKey)
-
-			helperRow := pb.HelperRow{
-				RowName:     rowValues.RowName,
-				Rowlayout:   rowValues.Rowlayout,
-				RowBaseUrl:  "http://cloudwalker-assets-prod.s3.ap-south-1.amazonaws.com/images/tiles/",
-				ContentTile: contentTiles,
-			}
-
-			//log.Println("row proto   ============>  ",helperRow.String())
-
-			resultByteArray, err := proto.Marshal(&helperRow)
-			if err != nil {
-				return nil, err
-			}
-
-			//log.Println("row bytes ===============> ", resultByteArray)
-
-			//TODO add base Url to it
-			s.RedisConnection.SAdd(rowKey, resultByteArray)
-
-			rowPathSet = append(rowPathSet, fmt.Sprintf("/row/%s/%s/%s/%s", formatString(schedule.Vendor),
-				formatString(schedule.Brand),
-				formatString(pageValue.PageName),
-				formatString(rowValues.RowName)))
-		}
-
-		//TODO Pages storing to redis...
-		pageObj.RowContentEndpoint = rowPathSet
-
-		resultByteArray, err := proto.Marshal(&pageObj)
-		if err != nil {
-			return nil, err
-		}
-
-		pageKey := fmt.Sprintf("%s:%s:%s", formatString(schedule.Vendor),
-			formatString(schedule.Brand),
-			formatString(pageValue.PageName))
-
-		s.RedisConnection.SAdd(pageKey, resultByteArray)
-
-		//log.Println("Page info ", pageValue.PageName, " ", fmt.Sprintf("%s/%s/%s", 	formatString(schedule.Vendor),
-		//																						formatString(schedule.Brand),
-		//																						formatString(pageValue.PageName)))
-
-		primePageObj := pb.PrimePages{
-			PageName: pageValue.PageName,
-			PageEndpoint: fmt.Sprintf("/page/%s/%s/%s", formatString(schedule.Vendor),
-				formatString(schedule.Brand),
-				formatString(pageValue.PageName)),
-		}
-
-		log.Println("Page Key ===========>   ", pageKey)
-
-		resultByteArray, err = proto.Marshal(&primePageObj)
-		if err != nil {
-			return nil, err
-		}
-
-		//setting prime pages in redis
-		result := s.RedisConnection.SAdd(primeKey, resultByteArray)
-		if result.Err() != nil {
-			log.Println("hit 12")
-			return nil, result.Err()
-		}
+	if err = s.RefreshingWorker(&schedule, ctx); err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Error in refreshing process ", err))
 	}
-
-	return &pb.RefreshScheduleResponse{}, nil
+	return &pb.RefreshScheduleResponse{IsSuccessful:true}, nil
 }
 
 func formatString(value string) string {
 	return strings.ToLower(strings.Replace(value, " ", "_", -1))
 }
 
-func pipelineMaker(rowValues *pb.Row) mongo.Pipeline {
+func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
 	// creating pipes for mongo aggregation
 	pipeline := mongo.Pipeline{}
 
@@ -368,4 +226,171 @@ func pipelineMaker(rowValues *pb.Row) mongo.Pipeline {
 	}
 
 	return pipeline
+}
+
+func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) error {
+
+	primeKey := fmt.Sprintf("%s:%s:cloudwalkerPrimePages", formatString(schedule.Vendor), formatString(schedule.Brand))
+	s.ifExitDelete(primeKey)
+	log.Println("Prime Key =============>  ", primeKey)
+
+
+	//Looping pages
+	for _, pageValue := range schedule.Pages {
+		var pageObj pb.Page
+
+		pageKey := fmt.Sprintf("%s:%s:%s", 	formatString(schedule.Vendor),
+													formatString(schedule.Brand),
+													formatString(pageValue.PageName))
+
+		s.ifExitDelete(pageKey)
+
+
+		// looping carosuel
+		if len(pageValue.Carousel) > 0 {
+
+			carouselKey := fmt.Sprintf("%s:%s:%s:carousel", formatString(schedule.Vendor),
+				formatString(schedule.Brand),
+				formatString(pageValue.PageName))
+			s.ifExitDelete(carouselKey)
+			log.Println("carosuel Key ==================>  ", carouselKey)
+
+			// getting carousel
+			for _, carouselValues := range pageValue.Carousel {
+
+				carobj := pb.Carousel{
+					ImageUrl:    carouselValues.ImageUrl,
+					Target:      carouselValues.Target,
+					Title:       carouselValues.Title,
+					PackageName: carouselValues.PackageName,
+				}
+
+				resultByteArray, err := proto.Marshal(&carobj)
+				if err != nil {
+					return  err
+				}
+
+				// setting page carousel in redis
+				result := s.RedisConnection.SAdd(carouselKey, resultByteArray)
+
+				if result.Err() != nil {
+					log.Fatal(result.Err())
+				}
+			}
+
+			pageObj.CarouselEndpoint = fmt.Sprintf("/carousel/%s/%s/%s", formatString(schedule.Vendor),
+				formatString(schedule.Brand),
+				formatString(pageValue.PageName))
+		}
+
+		var rowPathSet []string
+
+		// looping rows
+		for _, rowValues := range pageValue.GetRow() {
+
+			rowKey := fmt.Sprintf("%s:%s:%s:%s", formatString(schedule.Vendor),
+				formatString(schedule.Brand),
+				formatString(pageValue.PageName),
+				formatString(rowValues.RowName))
+			s.ifExitDelete(rowKey)
+			// making stages
+			pipeline := pipelineMaker(rowValues)
+
+			// creating aggregation query
+			tileCur, err := s.TileCollection.Aggregate(context.Background(), pipeline)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			var contentTiles []*pb.ContentTile
+			defer tileCur.Close(ctx)
+
+
+
+			for tileCur.Next(context.Background()) {
+				var temp Temp
+				var contentTile pb.ContentTile
+				err = tileCur.Decode(&temp)
+				if err != nil {
+					return  err
+				}
+				contentTile.ContentId = temp.ContentTile[0].ContentID
+				contentTile.IsDetailPage = temp.ContentTile[0].IsDetailPage
+				contentTile.PackageName = temp.ContentTile[0].PackageName
+				if len(temp.ContentTile[0].Poster) > 0 {
+					contentTile.Poster = temp.ContentTile[0].Poster[0]
+				}
+				if len(temp.ContentTile[0].Portrait) > 0 {
+					contentTile.Portrait = temp.ContentTile[0].Portrait[0]
+				}
+				contentTile.Target = temp.ContentTile[0].Target
+				contentTile.Title = temp.ContentTile[0].Title
+				contentTile.TileType = pb.TileType_ImageTile
+				contentTiles = append(contentTiles, &contentTile)
+			}
+
+			log.Println("RowKey  ===============> ", rowKey)
+
+			helperRow := pb.Row{
+				RowName:     rowValues.RowName,
+				RowLayout:   rowValues.Rowlayout,
+				ContentBaseUrl:  "http://cloudwalker-assets-prod.s3.ap-south-1.amazonaws.com/images/tiles/",
+				ContentTiles: contentTiles,
+			}
+
+			//log.Println("row proto   ============>  ",helperRow.String())
+
+			resultByteArray, err := proto.Marshal(&helperRow)
+			if err != nil {
+				return  err
+			}
+
+			//log.Println("row bytes ===============> ", resultByteArray)
+
+			//TODO add base Url to it
+			s.RedisConnection.SAdd(rowKey, resultByteArray)
+
+			rowPathSet = append(rowPathSet, fmt.Sprintf("/row/%s/%s/%s/%s", 	formatString(schedule.Vendor),
+																					formatString(schedule.Brand),
+																					formatString(pageValue.PageName),
+																					formatString(rowValues.RowName)))
+		}
+
+		//TODO Pages storing to redis...
+		pageObj.RowContentEndpoint = rowPathSet
+
+		resultByteArray, err := proto.Marshal(&pageObj)
+		if err != nil {
+			return  err
+		}
+
+		s.RedisConnection.SAdd(pageKey, resultByteArray)
+
+		primePageObj := pb.PrimePage{
+			PageName: pageValue.PageName,
+			PageEndpoint: fmt.Sprintf("/page/%s/%s/%s", 			formatString(schedule.Vendor),
+																		formatString(schedule.Brand),
+																		formatString(pageValue.PageName)),
+		}
+
+		log.Println("Page Key ===========>   ", pageKey)
+
+		resultByteArray, err = proto.Marshal(&primePageObj)
+		if err != nil {
+			return  err
+		}
+
+		//setting prime pages in redis
+		result := s.RedisConnection.SAdd(primeKey, resultByteArray)
+		if result.Err() != nil {
+			return result.Err()
+		}
+	}
+	return nil
+}
+
+func (s Server)ifExitDelete(redisKey string)  {
+	if s.RedisConnection.Exists(redisKey).Val() ==  1 {
+		s.RedisConnection.Del(redisKey)
+	}
 }

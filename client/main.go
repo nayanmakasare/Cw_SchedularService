@@ -3,7 +3,6 @@ package main
 import (
 	pb "Cw_Schedule/proto"
 	"context"
-	"github.com/go-redis/redis"
 	"google.golang.org/grpc"
 	"io"
 	"log"
@@ -69,25 +68,27 @@ func main() {
 		go RefreshSchedule(c, &wg)
 		//go GetScheduler(c, &wg)
 		//go UpdateSchedule(c, &wg)
+		//go DeleteSchedule(c, &wg)
 	}
 	wg.Wait()
 }
 
-func getRedisClient(redisHost string) *redis.Client {
-	client := redis.NewClient(&redis.Options{
-		Addr:     redisHost,
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
-	_, err := client.Ping().Result()
+
+func DeleteSchedule(c pb.SchedularServiceClient, wg *sync.WaitGroup) {
+	resp, err := c.DeleteSchedule(context.Background(), &pb.DeleteScheduleRequest{Vendor:"cvte", Brand:"shinko"})
 	if err != nil {
-		log.Fatalf("Could not connect to redis %v", err)
+		log.Fatal(err)
 	}
-	return client
+	log.Println(resp.IsSuccessful)
+	wg.Done()
 }
 
+
 func RefreshSchedule(c pb.SchedularServiceClient, wg *sync.WaitGroup) {
-	result, err := c.RefreshSchedule(context.Background(), &pb.RefreshScheduleRequest{})
+	result, err := c.RefreshSchedule(context.Background(), &pb.RefreshScheduleRequest{
+		Vendor:               "cvte",
+		Brand:                "shinko",
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -113,7 +114,7 @@ func CreateSchedule(c pb.SchedularServiceClient, wg *sync.WaitGroup) {
 	rowFilter12 := make(map[string]*pb.RowFilterValue)
 
 	rowFiltValue122 := pb.RowFilterValue{
-		Values: []string{"Hindi"},
+		Values: []string{"Hindi", "Hindi Dub"},
 	}
 	rowFilter12["metadata.languages"] = &rowFiltValue122
 
@@ -130,7 +131,7 @@ func CreateSchedule(c pb.SchedularServiceClient, wg *sync.WaitGroup) {
 	rowSort11["releaseData"] = -1
 
 	// Rows in Page 1
-	rows1 := []*pb.Row{
+	rows1 := []*pb.ScheduleRow{
 		{
 			Rowlayout:  pb.RowLayout_Landscape,
 			RowName:    "Trailers",
@@ -151,7 +152,7 @@ func CreateSchedule(c pb.SchedularServiceClient, wg *sync.WaitGroup) {
 		},
 	}
 
-	carouesl1 := []*pb.Carousel{
+	carouesl1 := []*pb.ScheduleCarousel{
 		{
 			Target:      "111111",
 			PackageName: "in.startv.hotstar",
@@ -172,7 +173,7 @@ func CreateSchedule(c pb.SchedularServiceClient, wg *sync.WaitGroup) {
 		},
 	}
 
-	pages := []*pb.Page{
+	pages := []*pb.SchedulePage{
 		{
 			PageName:  "Movies",
 			PageIndex: 0,
@@ -202,6 +203,7 @@ func CreateSchedule(c pb.SchedularServiceClient, wg *sync.WaitGroup) {
 		StartTime: 12,
 		EndTime:   15,
 		Pages:     pages,
+		BaseUrl: "http://cloudwalker-assets-prod.s3.ap-south-1.amazonaws.com/images/tiles/",
 	}
 
 	resp, err := c.CreateSchedule(context.Background(), vbs)
@@ -218,7 +220,7 @@ func UpdateSchedule(c pb.SchedularServiceClient, wg *sync.WaitGroup) {
 		Vendor:    "cvte",
 		StartTime: 12,
 		EndTime:   15,
-		Pages:     []*pb.Page{},
+		Pages:     []*pb.SchedulePage{},
 	}
 
 	resp, err := c.UpdateSchedule(context.Background(), vbs)

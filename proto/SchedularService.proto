@@ -4,6 +4,7 @@ package SchedularService;
 
 import   "google/protobuf/timestamp.proto";
 import   "google/api/annotations.proto";
+//import   "protoc-gen-gotag/tagger/tagger.proto";
 
 service SchedularService{
 
@@ -50,22 +51,23 @@ message Schedule{
     string vendor = 2;
     int32 startTime = 3;
     int32 endTime = 4;
-    repeated Page pages = 6;
+    repeated SchedulePage pages = 6;
     google.protobuf.Timestamp createdAt = 7;
     google.protobuf.Timestamp updatedAt = 8;
+    string baseUrl = 9;
 }
 
-message Page{
+message SchedulePage{
     string pageName = 1;
     int32 pageIndex = 2;
     string pageLogo = 3;
-    repeated Row row = 4;
-    repeated Carousel carousel = 5;
+    repeated ScheduleRow row = 4;
+    repeated ScheduleCarousel carousel = 5;
     google.protobuf.Timestamp createdAt = 7;
     google.protobuf.Timestamp updatedAt = 8;
 }
 
-message Carousel{
+message ScheduleCarousel{
     string target = 1;
     string packageName = 2;
     string imageUrl = 3;
@@ -75,7 +77,7 @@ message Carousel{
 
 
 // -1 for sort descending and 1 for sort ascending,
-message Row{
+message ScheduleRow{
     RowLayout rowlayout = 1;
     string rowName = 2;
     int32 rowIndex = 3;
@@ -104,7 +106,6 @@ message RowFilterValue {
 
 
 
-
 message GetScheduleRequest{
     string vendor = 1;
     string brand = 2;
@@ -124,25 +125,59 @@ message DeleteScheduleResponse {
 
 //Refresh logic
 message RefreshScheduleRequest {
+    string vendor = 1;
+    string brand = 2;
 }
 
 
 message RefreshScheduleResponse {
-    map<string, RowFilterValue> rowFilters = 1;
+   bool isSuccessful = 1;
 }
 
-//Helper Messages
-message PrimePages {
-    string pageName = 1;
-    string pageEndpoint = 2;
+
+//Revamping
+
+
+
+// Row
+message Row{
+    string rowName = 1;
+    RowLayout rowLayout = 2;
+    string contentBaseUrl = 3;
+    repeated ContentTile contentTiles = 4;
 }
 
-message HelperPage {
-    string carouselEndpoint = 1;
-    repeated string rowContentEndpoint = 2;
+
+// contentTile
+enum TileType {
+    ImageTile = 0;
+    VideoTile = 1;
+    FeatureTile = 2;
+    AdvertiseTile = 3;
+    CarouselTile = 4;
 }
 
-message HelperCarosuel {
+message ContentTile{
+    string title = 1;
+    string mediaUrl = 2;
+    TileType tileType = 3;
+    string poster = 4;
+    string portrait = 5;
+    bool isDetailPage = 6;
+    string packageName = 7;
+    string contentId = 8;
+    repeated string target = 9;
+    string realeaseDate = 10;
+}
+
+//carosuel
+message CarouselResponse{
+    repeated Carousel carousel = 1;
+    string carouselBaseUrl = 2;
+}
+
+
+message Carousel{
     string imageUrl = 1;
     string target = 2;
     string title = 3;
@@ -150,32 +185,17 @@ message HelperCarosuel {
 }
 
 
-message HelperContentTile {
-    string title = 1;
-    repeated string portrait = 2;
-    repeated string poster = 3;
-    string contentId = 4;
-    bool isDetailPage = 5;
-    repeated string target = 6;
-    string packageName = 7;
+//Page
+message CloudwalkerSchedule{
+    repeated PrimePage primePages = 1;
 }
 
-message HelperRow {
-    string rowName = 1;
-    RowLayout rowlayout = 2;
-    string rowBaseUrl = 3;
-    repeated HelperContentTile contentTile = 4;
+message PrimePage{
+    string pageName = 1;
+    string pageEndpoint = 2;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
+message Page{
+    string carouselEndpoint = 1;
+    repeated string rowContentEndpoint = 2;
+}
