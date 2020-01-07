@@ -148,6 +148,7 @@ func CreateSchedule(c pb.SchedularServiceClient, wg *sync.WaitGroup) {
 			RowTileIds: nil,
 			RowSort:    rowSort11,
 			RowType:    pb.RowType_Dynamic,
+			Shuffle:    true,
 		},
 	}
 

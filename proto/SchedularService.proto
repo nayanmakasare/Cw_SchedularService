@@ -74,8 +74,6 @@ message ScheduleCarousel{
     string title = 4;
 }
 
-
-
 // -1 for sort descending and 1 for sort ascending,
 message ScheduleRow{
     RowLayout rowlayout = 1;
@@ -85,6 +83,7 @@ message ScheduleRow{
     map<string, sint32> rowSort = 5;
     repeated string rowTileIds = 6;
     RowType rowType = 7;
+    bool shuffle = 8;
 }
 
 enum RowType{
@@ -135,16 +134,14 @@ message RefreshScheduleResponse {
 }
 
 
-//Revamping
-
-
 
 // Row
 message Row{
     string rowName = 1;
     RowLayout rowLayout = 2;
     string contentBaseUrl = 3;
-    repeated ContentTile contentTiles = 4;
+    string contentId = 4;
+    bool shuffle = 5;
 }
 
 

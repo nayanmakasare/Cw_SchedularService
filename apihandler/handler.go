@@ -322,7 +322,6 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 				log.Fatal(err)
 			}
 
-			var contentTiles []*pb.ContentTile
 			defer tileCur.Close(ctx)
 
 			contentkey := fmt.Sprintf("%s:content", rowKey)
@@ -357,8 +356,6 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 				if err = s.RedisConnection.SAdd(contentkey,contentByte).Err(); err != nil {
 					return err
 				}
-
-				contentTiles = append(contentTiles, &contentTile)
 			}
 
 			log.Println("RowKey  ===============> ", rowKey)
@@ -367,7 +364,8 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 				RowName:     rowValues.RowName,
 				RowLayout:   rowValues.Rowlayout,
 				ContentBaseUrl:  "http://cloudwalker-assets-prod.s3.ap-south-1.amazonaws.com/images/tiles/",
-				ContentTiles: contentTiles,
+				ContentId: contentkey,
+				Shuffle:   rowValues.Shuffle,
 			}
 
 			//log.Println("row proto   ============>  ",helperRow.String())

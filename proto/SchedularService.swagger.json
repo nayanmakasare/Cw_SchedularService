@@ -357,6 +357,10 @@
         },
         "rowType": {
           "$ref": "#/definitions/SchedularServiceRowType"
+        },
+        "shuffle": {
+          "type": "boolean",
+          "format": "boolean"
         }
       },
       "title": "-1 for sort descending and 1 for sort ascending,"
