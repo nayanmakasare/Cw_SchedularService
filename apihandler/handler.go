@@ -40,6 +40,8 @@ type Temp struct {
 		IsDetailPage bool     `json:"isDetailPage"`
 		PackageName  string   `json:"packageName"`
 		Target       []string `json:"target"`
+		Created_at       string `json:"created_at"`
+		Updated_at       string `json:"updated_at"`
 	} `json:"contentTile"`
 }
 
@@ -197,11 +199,24 @@ func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
 		// Adding stages 1
 		pipeline = append(pipeline, bson.D{{"$match", filterArray}})
 
+		//{"releaseDate", "$metadata.releaseDate"},
+		//{"year", "$metadata.year"},
+		//{"rating", "$metadata.rating"},
+
 		// making stage 2
 		stage2 := bson.D{{"$group", bson.D{{"_id", bson.D{
 			{"created_at", "$created_at"},
+			{"updated_at", "$updated_at"},
+			{"title", "$metadata.title"},
+			{"portrait", "$posters.portrait",},
+			{"poster", "$posters.landscape"},
+			{"contentId", "$ref_id"},
+			{"isDetailPage", "$content.detailPage"},
+			{"packageName", "$content.package"},
+			{"target", "$content.target"},
 			{"releaseDate", "$metadata.releaseDate"},
 			{"year", "$metadata.year"},
+
 		}}, {"contentTile", bson.D{{"$push", bson.D{
 				{"title", "$metadata.title"},
 				{"portrait", "$posters.portrait",},
@@ -210,19 +225,23 @@ func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
 				{"isDetailPage", "$content.detailPage"},
 				{"packageName", "$content.package"},
 				{"target", "$content.target"},
+				{"releaseDate", "$metadata.releaseDate"},
+				{"year", "$metadata.year"},
 		}}}}}}}
 
 		pipeline = append(pipeline, stage2)
 
 		// making stage 3
 		var sortArray []bson.E
-		for key, value := range rowValues.RowSort {
-			sortArray = append(sortArray, bson.E{fmt.Sprintf("_id.%s", key), value})
-		}
 
-		//stage 3
-		stage3 := bson.D{{"$sort", sortArray}}
-		pipeline = append(pipeline, stage3)
+		if rowValues.RowSort != nil {
+			for key, value := range rowValues.RowSort {
+				sortArray = append(sortArray, bson.E{fmt.Sprintf("_id.%s", key), value})
+			}
+			//stage 3
+			stage3 := bson.D{{"$sort", sortArray}}
+			pipeline = append(pipeline, stage3)
+		}
 	}
 
 	return pipeline
@@ -292,6 +311,7 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 				formatString(schedule.Brand),
 				formatString(pageValue.PageName),
 				formatString(rowValues.RowName))
+
 			s.ifExitDelete(rowKey)
 			// making stages
 			pipeline := pipelineMaker(rowValues)
@@ -305,6 +325,8 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 			var contentTiles []*pb.ContentTile
 			defer tileCur.Close(ctx)
 
+			contentkey := fmt.Sprintf("%s:content", rowKey)
+			s.ifExitDelete(contentkey)
 
 
 			for tileCur.Next(context.Background()) {
@@ -326,6 +348,16 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 				contentTile.Target = temp.ContentTile[0].Target
 				contentTile.Title = temp.ContentTile[0].Title
 				contentTile.TileType = pb.TileType_ImageTile
+
+				contentByte, err := proto.Marshal(&contentTile)
+				if err != nil {
+					return  err
+				}
+
+				if err = s.RedisConnection.SAdd(contentkey,contentByte).Err(); err != nil {
+					return err
+				}
+
 				contentTiles = append(contentTiles, &contentTile)
 			}
 

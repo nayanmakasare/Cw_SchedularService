@@ -127,8 +127,7 @@ func CreateSchedule(c pb.SchedularServiceClient, wg *sync.WaitGroup) {
 	rowSort11 := make(map[string]int32)
 
 	rowSort11["created_at"] = -1
-	rowSort11["rating"] = -1
-	rowSort11["releaseData"] = -1
+	rowSort11["updated_at"] = -1
 
 	// Rows in Page 1
 	rows1 := []*pb.ScheduleRow{
