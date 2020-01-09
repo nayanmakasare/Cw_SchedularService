@@ -22,6 +22,23 @@ type Server struct {
 	TileCollection      *mongo.Collection
 }
 
+
+// for Editorial Type
+type EditorialTemp struct {
+	ID struct {
+		Oid string `json:"$oid"`
+	} `json:"_id"`
+	Title        string   `json:"title"`
+	Portrait     []string `json:"portrait"`
+	Poster       []string `json:"poster"`
+	ContentID    string   `json:"contentId"`
+	IsDetailPage bool     `json:"isDetailPage"`
+	PackageName  string   `json:"packageName"`
+	Target       []string `json:"target"`
+}
+
+
+// for dynamic Row type
 type Temp struct {
 	ID struct {
 		CreatedAt struct {
@@ -176,7 +193,8 @@ func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
 	// creating pipes for mongo aggregation
 	pipeline := mongo.Pipeline{}
 
-	var filterArray []bson.E
+	//pipeline = append(pipeline, bson.D{{"$match", bson.D{{"content.publishState", true}}}})
+
 	//pipeline = append(pipeline , bson.D{{"$match", bson.D{{"content.publishState", true}}}})
 	if rowValues.RowType == pb.RowType_Editorial {
 		// Adding stages 1
@@ -184,7 +202,8 @@ func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
 
 
 		//Adding stage 2
-		pipeline = append(pipeline, bson.D{{"$project", bson.D{{"title", "$metadata.title"},
+		pipeline = append(pipeline, bson.D{{"$project", bson.D{
+			{"title", "$metadata.title"},
 			{"portrait", "$posters.portrait",},
 			{"poster", "$posters.landscape"},
 			{"contentId", "$ref_id"},
@@ -193,8 +212,11 @@ func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
 			{"target", "$content.target"},}}})
 
 	} else {
+		var filterArray []bson.E
 		for key, value := range rowValues.RowFilters {
-			filterArray = append(filterArray, bson.E{key, bson.D{{"$in", value.Values}}})
+			if len(value.Values) > 0 {
+				filterArray = append(filterArray, bson.E{key, bson.D{{"$in", value.Values}}})
+			}
 		}
 		// Adding stages 1
 		pipeline = append(pipeline, bson.D{{"$match", filterArray}})
@@ -231,10 +253,9 @@ func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
 
 		pipeline = append(pipeline, stage2)
 
-		// making stage 3
-		var sortArray []bson.E
-
 		if rowValues.RowSort != nil {
+			// making stage 3
+			var sortArray []bson.E
 			for key, value := range rowValues.RowSort {
 				sortArray = append(sortArray, bson.E{fmt.Sprintf("_id.%s", key), value})
 			}
@@ -327,34 +348,58 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 			contentkey := fmt.Sprintf("%s:content", rowKey)
 			s.ifExitDelete(contentkey)
 
-
 			for tileCur.Next(context.Background()) {
-				var temp Temp
 				var contentTile pb.ContentTile
-				err = tileCur.Decode(&temp)
-				if err != nil {
-					return  err
-				}
-				contentTile.ContentId = temp.ContentTile[0].ContentID
-				contentTile.IsDetailPage = temp.ContentTile[0].IsDetailPage
-				contentTile.PackageName = temp.ContentTile[0].PackageName
-				if len(temp.ContentTile[0].Poster) > 0 {
-					contentTile.Poster = temp.ContentTile[0].Poster[0]
-				}
-				if len(temp.ContentTile[0].Portrait) > 0 {
-					contentTile.Portrait = temp.ContentTile[0].Portrait[0]
-				}
-				contentTile.Target = temp.ContentTile[0].Target
-				contentTile.Title = temp.ContentTile[0].Title
-				contentTile.TileType = pb.TileType_ImageTile
+				if rowValues.RowType == pb.RowType_Editorial {
+					var temp EditorialTemp
+					err = tileCur.Decode(&temp)
+					if err != nil {
+						return  err
+					}
+					contentTile.ContentId = temp.ContentID
+					contentTile.IsDetailPage = temp.IsDetailPage
+					contentTile.PackageName = temp.PackageName
+					if len(temp.Poster) > 0 {
+						contentTile.Poster = temp.Poster[0]
+					}
+					if len(temp.Portrait) > 0 {
+						contentTile.Portrait = temp.Portrait[0]
+					}
+					contentTile.Target = temp.Target
+					contentTile.Title = temp.Title
+					contentTile.TileType = pb.TileType_ImageTile
 
-				contentByte, err := proto.Marshal(&contentTile)
-				if err != nil {
-					return  err
+				} else {
+					var temp Temp
+					err = tileCur.Decode(&temp)
+					if err != nil {
+						return  err
+					}
+					if len(temp.ContentTile) > 0 {
+						contentTile.ContentId = temp.ContentTile[0].ContentID
+						contentTile.IsDetailPage = temp.ContentTile[0].IsDetailPage
+						contentTile.PackageName = temp.ContentTile[0].PackageName
+						if len(temp.ContentTile[0].Poster) > 0 {
+							contentTile.Poster = temp.ContentTile[0].Poster[0]
+						}
+						if len(temp.ContentTile[0].Portrait) > 0 {
+							contentTile.Portrait = temp.ContentTile[0].Portrait[0]
+						}
+						contentTile.Target = temp.ContentTile[0].Target
+						contentTile.Title = temp.ContentTile[0].Title
+						contentTile.TileType = pb.TileType_ImageTile
+					}
 				}
 
-				if err = s.RedisConnection.SAdd(contentkey,contentByte).Err(); err != nil {
-					return err
+				if contentTile.XXX_Size() > 0 {
+					contentByte, err := proto.Marshal(&contentTile)
+					if err != nil {
+						return  err
+					}
+
+					if err = s.RedisConnection.SAdd(contentkey,contentByte).Err(); err != nil {
+						return err
+					}
 				}
 			}
 

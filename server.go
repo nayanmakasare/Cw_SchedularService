@@ -21,11 +21,14 @@ import (
 	"time"
 )
 
+
+
 const (
-	defaultHost          = "mongodb://nayan:tlwn722n@cluster0-shard-00-00-8aov2.mongodb.net:27017,cluster0-shard-00-01-8aov2.mongodb.net:27017,cluster0-shard-00-02-8aov2.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true&w=majority"
-	developmentMongoHost = "mongodb://192.168.1.9:27017"
+	//defaultHost          = "mongodb://nayan:tlwn722n@cluster0-shard-00-00-8aov2.mongodb.net:27017,cluster0-shard-00-01-8aov2.mongodb.net:27017,cluster0-shard-00-02-8aov2.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true&w=majority"
+	//defaultHost          = "mongodb+srv://nayan:tlwn722n@cluster0-shard-00-00-8aov2.mongodb.net/admin?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true&w=majority"
+	developmentMongoHost = "mongodb://dev-uni.cloudwalker.tv:6592"
 	schedularMongoHost   = "mongodb://192.168.1.143:27017"
-	schedularRedisHost   = "192.168.1.143:6379"
+	schedularRedisHost   = "redis:6379"
 )
 
 // private type for Context keys
@@ -41,7 +44,7 @@ var tileRedis *redis.Client
 // Multiple init() function
 func init() {
 	fmt.Println("Welcome to init() function")
-	scheduleCollection = getMongoCollection("cloudwalker", "schedule", defaultHost)
+	scheduleCollection = getMongoCollection("cloudwalker", "schedule", developmentMongoHost)
 	tileCollection = getMongoCollection("cwtx2devel", "tiles", developmentMongoHost)
 	tileRedis = getRedisClient(schedularRedisHost)
 }
@@ -163,11 +166,11 @@ func getRedisClient(redisHost string) *redis.Client {
 }
 
 func main() {
+
 	//grpcAddress := fmt.Sprintf("%s:%d", "cloudwalker.services.tv", 7775)
 	//restAddress := fmt.Sprintf("%s:%d", "cloudwalker.services.tv", 7776)
-
-	grpcAddress := fmt.Sprintf("%s:%d", "192.168.1.143", 7775)
-	restAddress := fmt.Sprintf("%s:%d", "192.168.1.143", 7776)
+	grpcAddress := fmt.Sprintf(":%d",  7775)
+	restAddress := fmt.Sprintf(":%d",  7776)
 	certFile := "cert/server.crt"
 	keyFile := "cert/server.key"
 

@@ -1,29 +1,76 @@
-version: '3'
+version: '3.1'
 services:
-  schedular-service:
-    build: .
+  cw_schedular:
+    image: debian:latest
+    depends_on:
+      - redis
+    working_dir: /app
+    volumes:
+      - $HOME/replete/:/app/
     ports:
       - 7776:7776
       - 7775:7775
-    links:
-      - schedular-mongodb
-#      - schedular-redis
-    hostname: cloudwalker.services.tv
+    command: ["./Cw_Schedule"]
 
-  schedular-mongodb:
-    image: mongo:latest
+  cw_tile_service:
+    image: debian:latest
+    depends_on:
+      - cw_schedular
+    working_dir: /app
     volumes:
-      - /home/nayan/nayan_workspace/docker_volumns/mongo/schedular/:/data/db
+      - $HOME/replete/:/app/
     ports:
-      - 27017:27017
-    command: mongod
+      - 7774:7774
+      - 7773:7773
+    command: ["./Cw_TileService"]
 
-#  schedular-redis:
-#    image: redis:latest
-#    environment:
-#      - ALLOW_EMPTY_PASSWORD=yes
-#    volumes:
-#      - /home/nayan/nayan_workspace/docker_volumns/redis/schedular/:/data/
-#    ports:
-#      - 6377:6379
-#    command: ["redis-server", "--appendonly", "yes"]
+  cw_detail_service:
+    image: debian:latest
+    depends_on:
+      - cw_schedular
+    working_dir: /app
+    volumes:
+      - $HOME/replete/:/app/
+    ports:
+      - 7767:7767
+      - 7768:7768
+    command: ["./Cw_DetailPage"]
+
+  cw_search_service:
+    image: debian:latest
+    depends_on:
+      - cw_schedular
+    working_dir: /app
+    volumes:
+      - $HOME/replete/:/app/
+    ports:
+      - 7772:7772
+      - 7771:7771
+    command: ["./CDEService"]
+
+  redis:
+    image: redis:latest
+    volumes:
+      - /srv/docker/redis:/var/lib/redis
+    restart: always
+    ports:
+      - 6379:6379
+    command: ["redis-server", "--appendonly", "yes"]
+
+
+
+#command: >
+#  sh -c "./schedularService &&
+#         ./tileService &&
+#         ./searchService &&
+#          curl --location --request POST 'http://192.168.1.143:7776/refreshSchedule' --header 'Content-Type: application/json' --data-raw '{
+#                                                                     "vendor": "cvte",
+#                                                                     "brand": "shinko"
+#                                                                   }'"
+
+
+
+#    command:
+#      - ./schedularService
+#      - ./tileService
+#      - ./searchService

@@ -95,8 +95,8 @@ enum RowType{
 enum RowLayout{
     Landscape = 0;
     Portrait = 1;
-    Square = 3;
-    Circle = 4;
+    Square = 2;
+    Circle = 3;
 }
 
 message RowFilterValue {
