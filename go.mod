@@ -6,6 +6,7 @@ require (
 	github.com/DataDog/zstd v1.4.4 // indirect
 	github.com/amsokol/mongo-go-driver-protobuf v1.0.0-rc5
 	github.com/amsokol/protoc-gen-gotag v0.2.1 // indirect
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/go-redis/redis v6.15.6+incompatible
 	github.com/go-stack/stack v1.8.0 // indirect
@@ -20,10 +21,12 @@ require (
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/stretchr/testify v1.4.0 // indirect
 	github.com/tidwall/pretty v1.0.0 // indirect
+	github.com/vladimirvivien/go-grpc v0.0.0-20170911205228-0c7144fb38af // indirect
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
 	github.com/xdg/stringprep v1.0.0 // indirect
 	go.mongodb.org/mongo-driver v1.2.0
 	golang.org/x/crypto v0.0.0-20191219195013-becbf705a915 // indirect
+	golang.org/x/net v0.0.0-20191002035440-2ec189313ef0
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
 	golang.org/x/text v0.3.2 // indirect
 	google.golang.org/genproto v0.0.0-20190927181202-20e1ac93f88c

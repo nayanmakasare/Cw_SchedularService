@@ -3,17 +3,20 @@ package main
 import (
 	"Cw_Schedule/apihandler"
 	pb "Cw_Schedule/proto"
-	"context"
 	"fmt"
 	codecs "github.com/amsokol/mongo-go-driver-protobuf"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/go-redis/redis"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"log"
 	"net"
 	"net/http"
@@ -24,11 +27,14 @@ import (
 
 
 const (
-	//defaultHost          = "mongodb://nayan:tlwn722n@cluster0-shard-00-00-8aov2.mongodb.net:27017,cluster0-shard-00-01-8aov2.mongodb.net:27017,cluster0-shard-00-02-8aov2.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true&w=majority"
-	//defaultHost          = "mongodb+srv://nayan:tlwn722n@cluster0-shard-00-00-8aov2.mongodb.net/admin?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true&w=majority"
+	atlasMongoHost          = "mongodb://nayan:tlwn722n@cluster0-shard-00-00-8aov2.mongodb.net:27017,cluster0-shard-00-01-8aov2.mongodb.net:27017,cluster0-shard-00-02-8aov2.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true&w=majority"
 	developmentMongoHost = "mongodb://dev-uni.cloudwalker.tv:6592"
 	schedularMongoHost   = "mongodb://192.168.1.143:27017"
 	schedularRedisHost   = "redis:6379"
+	grpc_port        = ":7764"
+	rest_port		 = ":7765"
+	srvCertFile = "certs/server.crt"
+	srvKeyFile  = "certs/server.key"
 )
 
 // private type for Context keys
@@ -73,10 +79,54 @@ func authenticateClient(ctx context.Context, s *apihandler.Server) (string, erro
 	return "", fmt.Errorf("missing credentials")
 }
 
-func unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+//uthenticate client using jwt
+func auth(ctx context.Context) error {
+	meta, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return status.Errorf(
+			codes.InvalidArgument,
+			"missing context",
+		)
+	}
+
+	authString, ok := meta["authorization"]
+	if !ok {
+		return status.Errorf(
+			codes.Unauthenticated,
+			"missing authorization",
+		)
+	}
+	// validate token algo
+	log.Println("found jwt token")
+	jwtToken, err := jwt.Parse(
+		authString[0],
+		func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("bad signing method")
+			}
+			// additional validation goes here.
+			return []byte("transavro"), nil
+		},
+	)
+
+	if jwtToken.Valid {
+		return nil
+	}
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
+	}
+	return status.Error(codes.Internal, "bad token")
+}
+
+func unaryInterceptor(
+	ctx context.Context,
+	req interface{},
+	info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler) (interface{}, error) {
+
 	s, ok := info.Server.(*apihandler.Server)
 	if !ok {
-		return nil, fmt.Errorf("unable to cast the server")
+		return nil, status.Errorf(codes.Internal, fmt.Sprintf("unable to cast the server"))
 	}
 	clientID, err := authenticateClient(ctx, s)
 	if err != nil {
@@ -84,6 +134,31 @@ func unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServ
 	}
 	ctx = context.WithValue(ctx, clientIDKey, clientID)
 	return handler(ctx, req)
+
+	// auth using jwt
+
+	//if err := auth(ctx); err != nil {
+	//	return nil, err
+	//}
+	//log.Println("authorization OK")
+	//return handler(ctx, req)
+}
+
+// streamAuthIntercept intercepts to validate authorization
+func streamAuthIntercept(
+	server interface{},
+	stream grpc.ServerStream,
+	info *grpc.StreamServerInfo,
+	handler grpc.StreamHandler,
+) error {
+
+	// auth using jwt
+
+	if err := auth(stream.Context()); err != nil {
+		return err
+	}
+	log.Println("authorization OK")
+	return handler(server, stream)
 }
 
 func startGRPCServer(address, certFile, keyFile string) error {
@@ -102,8 +177,10 @@ func startGRPCServer(address, certFile, keyFile string) error {
 	creds, err := credentials.NewServerTLSFromFile(certFile, keyFile)
 	if err != nil {
 		return fmt.Errorf("could not load TLS keys: %s", err)
-	} // Create an array of gRPC options with the credentials
-	_ = []grpc.ServerOption{grpc.Creds(creds), grpc.UnaryInterceptor(unaryInterceptor)}
+	}
+
+	// Create an array of gRPC options with the credentials
+	_ = []grpc.ServerOption{grpc.Creds(creds), grpc.UnaryInterceptor(unaryInterceptor), grpc.StreamInterceptor(streamAuthIntercept)}
 
 	// create a gRPC server object
 	//grpcServer := grpc.NewServer(opts...)
@@ -122,15 +199,17 @@ func startRESTServer(address, grpcAddress, certFile string) error {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	mux := runtime.NewServeMux(runtime.WithIncomingHeaderMatcher(credMatcher))
+	mux := runtime.NewServeMux(runtime.WithIncomingHeaderMatcher(credMatcher),)
+
 	//creds, err := credentials.NewClientTLSFromFile(certFile, "")
 	//if err != nil {
 	//	return fmt.Errorf("could not load TLS certificate: %s", err)
 	//}  // Setup the client gRPC options
 	//
-	//opts := []grpc.DialOption{grpc.WithTransportCredentials(creds)}  // Register ping
+	//opts := []grpc.DialOption{grpc.WithTransportCredentials(creds),}  // Register ping
 
 	opts := []grpc.DialOption{grpc.WithInsecure()} // Register ping
+
 	err := pb.RegisterSchedularServiceHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
 	if err != nil {
 		return fmt.Errorf("could not register service Ping: %s", err)
@@ -169,14 +248,10 @@ func main() {
 
 	//grpcAddress := fmt.Sprintf("%s:%d", "cloudwalker.services.tv", 7775)
 	//restAddress := fmt.Sprintf("%s:%d", "cloudwalker.services.tv", 7776)
-	grpcAddress := fmt.Sprintf(":%d",  7775)
-	restAddress := fmt.Sprintf(":%d",  7776)
-	certFile := "cert/server.crt"
-	keyFile := "cert/server.key"
 
 	// fire the gRPC server in a goroutine
 	go func() {
-		err := startGRPCServer(grpcAddress, certFile, keyFile)
+		err := startGRPCServer(grpc_port, srvCertFile, srvKeyFile)
 		if err != nil {
 			log.Fatalf("failed to start gRPC server: %s", err)
 		}
@@ -184,200 +259,13 @@ func main() {
 
 	// fire the REST server in a goroutine
 	go func() {
-		err := startRESTServer(restAddress, grpcAddress, certFile)
+		err := startRESTServer(rest_port, grpc_port, srvCertFile)
 		if err != nil {
 			log.Fatalf("failed to start gRPC server: %s", err)
 		}
 	}()
 
-	// registering a cron job
-	//registeringCron()
-
 	// infinite loop
 	log.Printf("Entering infinite loop")
 	select {}
 }
-
-//func registeringCron(){
-//	// make and launching cron job
-//	c := cron.New()
-//	_, err := c.AddFunc("@every m", func() {
-//		log.Println("Cron Triggered " + string(time.Now().Hour()))
-//	})
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//	//staring cron job
-//	c.Start()
-//	//stop cron job on exit
-//	defer c.Stop()
-//}
-
-//func revampingSchedule(){
-//
-//	//gettting current hour
-//	hours, _, _ := time.Now().Clock()
-//
-//	//making filter query where we find the schedule in the time frame for eg : if current timing is 11 o'clock  and we have schedule 9 to 12 then it will be served.
-//	filter := bson.M{"$and" : []bson.M{bson.M{"starttime": bson.M{"$lte" : hours}}, bson.M{"endtime" :  bson.M{"$gt" : hours}} }}
-//
-//	cur, err := scheduleCollection.Find(context.Background(), filter)
-//
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//
-//	type primePage struct {
-//		pageName string `json:"pageName"`
-//		pageEndpoint string `json:"pageEndpoint"`
-//	}
-//
-//
-//	//	{
-//	//		"carouselEndpoint": "home/carousel",
-//	//		"rowContentEndpoint": [
-//	//		"home/rowContent1",
-//	//		"home/rowContent2",
-//	//		"home/rowContent3",
-//	//		"home/rowContent4",
-//	//		"home/rowContent5"
-//	//]
-//	//	}
-//
-//
-//	type Page struct {
-//		carouselEndpoint string  `json:"carouselEndpoint"`
-//		rowContentEndpoint []string  `json:"rowContentEndpoint"`
-//	}
-//
-//
-//	type carosuel struct{
-//		imageUrl string `json:"imageUrl"`
-//		target string `json:"target"`
-//		title string `json:"title"`
-//		packageName string `json:"packageName"`
-//	}
-//
-//
-//
-//	type contentTile struct {
-//		movieTitle string
-//		portrait []string
-//		poster []string
-//		movieId string
-//		isDetailPage bool
-//		target []string
-//		packagename string
-//	}
-//
-//	type row struct {
-//		rowName string `json:"rowName"`
-//		rowLayout pb.RowLayout `json:"rowLayout"`
-//		rowBaseUrl string `json:"rowBaseUrl"`
-//		contentTile []contentTile `json:"contentTiles"`
-//	}
-//
-//
-//	for cur.Next(context.Background()){
-//
-//		// getting schedule
-//		var schedule pb.Schedule
-//		err = cur.Decode(&schedule)
-//		if err != nil {
-//			log.Fatal(err)
-//		}
-//
-//		primePages := make([]*primePage, len(schedule.Pages))
-//
-//		// getting pages
-//		for _, pageValue := range schedule.Pages {
-//
-//
-//			carouselKey := fmt.Sprintf("%s:%s:%s:carousel",strings.ToLower(schedule.Vendor), strings.ToLower(schedule.Brand), strings.ToLower(strings.Replace(pageValue.PageName, " ", "_", -1)))
-//			rowKey := fmt.Sprintf("%s:%s:%s:rows",strings.ToLower(schedule.Vendor), strings.ToLower(schedule.Brand), strings.ToLower(strings.Replace(pageValue.PageName, " ", "_", -1)))
-//
-//
-//
-//			// getting carousel
-//			for _, carouselValues := range pageValue.Carousel {
-//				// setting page carousel in redis
-//				result := tileRedis.SAdd(carouselKey ,  &carosuel{
-//					imageUrl:    carouselValues.ImageUrl,
-//					target:      carouselValues.Target,
-//					title:       carouselValues.Title,
-//					packageName: carouselValues.PackageName,
-//				})
-//
-//				if result.Err() != nil {
-//					log.Fatal(result.Err())
-//				}
-//			}
-//
-//			// creating pipes for mongo aggregation
-//			myStages := mongo.Pipeline{}
-//
-//			// getting rows
-//			for _, rowValues := range pageValue.GetRow() {
-//				if rowValues.RowType == pb.RowType_Editorial {
-//					myStages = append(myStages, bson.D{{"$match", bson.D{{"ref_id", bson.D{{"$in", rowValues.RowTileIds}}}}}})
-//				}else {
-//					for key, value := range rowValues.RowFilters {
-//						// Adding stages
-//						myStages = append(myStages, bson.D{{"$match", bson.D{{key, bson.D{{"$in", value.Values}}}}}})
-//					}
-//					myStages = append(myStages,bson.D{{"$sort", bson.D{{"created_at", -1}, {"updated_at", -1}, {"metadata.year", -1}}}},)
-//				}
-//				myStages = append( myStages , bson.D{{"$project", bson.D{
-//					{"_id", 0},
-//					{"contentId", "ref_id"},
-//					{"title", "$metadata.title"},
-//					{"poster", "posters.landscape"},
-//					{"portrait", "posters.portrait"},
-//					{"packageName", "content.package"},
-//					{"target", "content.target"},
-//					{"isDetailPage", "content.detailPage"},
-//					{"realeaseDate", "metadata.releaseDate"},
-//				}}} )
-//
-//				// creating aggregation query
-//				tileCur, err := tileCollection.Aggregate(context.Background(), myStages)
-//				if(err != nil){
-//					log.Fatal(err)
-//				}
-//
-//				var contentTiles []contentTile
-//
-//				for tileCur.Next(context.Background()){
-//					var contentTile contentTile
-//					err = cur.Decode(&contentTile)
-//					if err != nil {
-//						log.Fatal(err)
-//					}
-//					contentTiles = append(contentTiles, contentTile)
-//
-//				}
-//
-//
-//				//TODO add base Url to it
-//				tileRedis.SAdd(rowKey, &row{
-//					rowName:    rowValues.RowName,
-//					rowLayout:  rowValues.Rowlayout,
-//				})
-//
-//			}
-//
-//			// appending to the slice
-//			primePages = append(primePages, &primePage{
-//				pageName:     pageValue.PageName,
-//				pageEndpoint: strings.ToLower(strings.Replace(pageValue.PageName, " ", "_", -1)),
-//			})
-//		}
-//
-//
-//		//setting prime pages in redis
-//		result := tileRedis.Set(fmt.Sprintf("%s:%s:cloudwalkerPrimePages", strings.ToLower(schedule.Vendor), strings.ToLower(schedule.Brand)), primePages, 3 * time.Hour)
-//		if result.Err() != nil {
-//			log.Fatal(result.Err())
-//		}
-//	}
-//}

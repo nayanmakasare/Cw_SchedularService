@@ -2,13 +2,13 @@ package apihandler
 
 import (
 	pb "Cw_Schedule/proto"
-	"context"
 	"fmt"
 	"github.com/go-redis/redis"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
@@ -21,7 +21,6 @@ type Server struct {
 	RedisConnection     *redis.Client
 	TileCollection      *mongo.Collection
 }
-
 
 // for Editorial Type
 type EditorialTemp struct {
@@ -193,13 +192,11 @@ func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
 	// creating pipes for mongo aggregation
 	pipeline := mongo.Pipeline{}
 
-	//pipeline = append(pipeline, bson.D{{"$match", bson.D{{"content.publishState", true}}}})
+	pipeline = append(pipeline , bson.D{{"$match", bson.D{{"content.publishState", true}}}})
 
-	//pipeline = append(pipeline , bson.D{{"$match", bson.D{{"content.publishState", true}}}})
 	if rowValues.RowType == pb.RowType_Editorial {
 		// Adding stages 1
 		pipeline = append(pipeline, bson.D{{"$match", bson.D{{"ref_id", bson.D{{"$in", rowValues.RowTileIds}}}}}})
-
 
 		//Adding stage 2
 		pipeline = append(pipeline, bson.D{{"$project", bson.D{
@@ -221,23 +218,16 @@ func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
 		// Adding stages 1
 		pipeline = append(pipeline, bson.D{{"$match", filterArray}})
 
-		//{"releaseDate", "$metadata.releaseDate"},
-		//{"year", "$metadata.year"},
-		//{"rating", "$metadata.rating"},
-
 		// making stage 2
 		stage2 := bson.D{{"$group", bson.D{{"_id", bson.D{
 			{"created_at", "$created_at"},
 			{"updated_at", "$updated_at"},
-			{"title", "$metadata.title"},
-			{"portrait", "$posters.portrait",},
-			{"poster", "$posters.landscape"},
 			{"contentId", "$ref_id"},
-			{"isDetailPage", "$content.detailPage"},
-			{"packageName", "$content.package"},
-			{"target", "$content.target"},
 			{"releaseDate", "$metadata.releaseDate"},
 			{"year", "$metadata.year"},
+			{"imdbid", "$metadata.imdbid"},
+			{"rating", "$metadata.rating"},
+			{"viewCount", "$metadata.viewCount"},
 
 		}}, {"contentTile", bson.D{{"$push", bson.D{
 				{"title", "$metadata.title"},
@@ -257,7 +247,7 @@ func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
 			// making stage 3
 			var sortArray []bson.E
 			for key, value := range rowValues.RowSort {
-				sortArray = append(sortArray, bson.E{fmt.Sprintf("_id.%s", key), value})
+				sortArray = append(sortArray, bson.E{strings.TrimSpace(strings.Replace(key, "metadata", "_id", -1 )), value})
 			}
 			//stage 3
 			stage3 := bson.D{{"$sort", sortArray}}
