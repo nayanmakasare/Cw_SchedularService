@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/zstd v1.4.4 // indirect
 	github.com/amsokol/mongo-go-driver-protobuf v1.0.0-rc5
 	github.com/amsokol/protoc-gen-gotag v0.2.1 // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/go-redis/redis v6.15.6+incompatible
 	github.com/go-stack/stack v1.8.0 // indirect

@@ -11,28 +11,28 @@ service SchedularService{
     //Schedular CRUD
     rpc CreateSchedule(Schedule) returns (Schedule){
         option (google.api.http) = {
-                post:"/createSchedule"
+                post:"/schedule/createSchedule"
                 body: "*"
         };
     }
 
     rpc GetSchedule(GetScheduleRequest) returns (stream Schedule){
         option (google.api.http) = {
-                post:"/getSchedule"
+                post:"/schedule/getSchedule"
                 body: "*"
         };
     }
 
     rpc UpdateSchedule(Schedule) returns (Schedule){
         option (google.api.http) = {
-                post:"/updateSchedule"
+                post:"/schedule/updateSchedule"
                 body: "*"
         };
     }
 
     rpc DeleteSchedule(DeleteScheduleRequest) returns (DeleteScheduleResponse){
         option (google.api.http) = {
-                post:"/deleteSchedule"
+                post:"/schedule/deleteSchedule"
                 body: "*"
         };
     }
@@ -40,7 +40,7 @@ service SchedularService{
     //Refresh manupilation
     rpc RefreshSchedule(RefreshScheduleRequest) returns (RefreshScheduleResponse){
         option (google.api.http) = {
-                post:"/refreshSchedule"
+                post:"/schedule/refreshSchedule"
                 body: "*"
         };
     }

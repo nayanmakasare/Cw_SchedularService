@@ -429,15 +429,15 @@ func RegisterSchedularServiceHandlerClient(ctx context.Context, mux *runtime.Ser
 }
 
 var (
-	pattern_SchedularService_CreateSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"createSchedule"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_SchedularService_CreateSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"schedule", "createSchedule"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_SchedularService_GetSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"getSchedule"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_SchedularService_GetSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"schedule", "getSchedule"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_SchedularService_UpdateSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"updateSchedule"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_SchedularService_UpdateSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"schedule", "updateSchedule"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_SchedularService_DeleteSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"deleteSchedule"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_SchedularService_DeleteSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"schedule", "deleteSchedule"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_SchedularService_RefreshSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"refreshSchedule"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_SchedularService_RefreshSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"schedule", "refreshSchedule"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (

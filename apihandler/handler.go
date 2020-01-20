@@ -12,7 +12,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
-	"strings"
 	"time"
 )
 
@@ -22,63 +21,29 @@ type Server struct {
 	TileCollection      *mongo.Collection
 }
 
-// for Editorial Type
-type EditorialTemp struct {
-	ID struct {
-		Oid string `json:"$oid"`
-	} `json:"_id"`
-	Title        string   `json:"title"`
-	Portrait     []string `json:"portrait"`
-	Poster       []string `json:"poster"`
-	ContentID    string   `json:"contentId"`
-	IsDetailPage bool     `json:"isDetailPage"`
-	PackageName  string   `json:"packageName"`
-	Target       []string `json:"target"`
-}
-
-
-// for dynamic Row type
-type Temp struct {
-	ID struct {
-		CreatedAt struct {
-			Date struct {
-				NumberLong string `json:"$numberLong"`
-			} `json:"$date"`
-		} `json:"created_at"`
-		ReleaseDate string `json:"releaseDate"`
-		Year        string `json:"year"`
-	} `json:"_id"`
-	ContentTile []struct {
-		Title        string   `json:"title"`
-		Portrait     []string `json:"portrait"`
-		Poster       []string `json:"poster"`
-		ContentID    string   `json:"contentId"`
-		IsDetailPage bool     `json:"isDetailPage"`
-		PackageName  string   `json:"packageName"`
-		Target       []string `json:"target"`
-		Created_at       string `json:"created_at"`
-		Updated_at       string `json:"updated_at"`
-	} `json:"contentTile"`
-}
-
 func (s *Server) CreateSchedule(ctx context.Context, req *pb.Schedule) (*pb.Schedule, error) {
 
 	//making fulter query
-	filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}, {"starttime": req.GetStartTime()}, {"endtime": req.GetEndTime()}}}
+	//filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}, {"starttime": req.GetStartTime()}, {"endtime": req.GetEndTime()}}}
+
+	log.Println("Create Schedule hit.")
+	filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}}}
 
 	//check if document already present
 	findResult := s.SchedularCollection.FindOne(ctx, filter)
 
+	log.Println("hit find query")
 	if findResult.Err() != nil {
 		log.Println(findResult.Err())
 		//All ok now insert the schedule
 		ts, _ := ptypes.TimestampProto(time.Now())
 		req.CreatedAt = ts
-		_, err := s.SchedularCollection.InsertOne(ctx, req)
+		log.Println(req)
+		_, err := s.SchedularCollection.InsertOne(ctx, &req)
 		if err != nil {
 			return nil, status.Error(codes.Internal, fmt.Sprintf("Mongo error while inserting schedule %s ", err.Error()))
 		}
-		go s.RefreshingWorker(req, ctx)
+		//go s.RefreshingWorker(req, ctx)
 		return req, nil
 	}
 	return nil, status.Error(codes.AlreadyExists, "schedule already exits please call update api instead")
@@ -104,7 +69,6 @@ func (s *Server) GetSchedule(req *pb.GetScheduleRequest, stream pb.SchedularServ
 	var schedule pb.Schedule
 	err := findResult.Decode(&schedule)
 	if err != nil {
-		log.Println(err)
 		return status.Error(codes.Internal, fmt.Sprintf("Error in decoding Schedule "))
 	}
 	//sending stream
@@ -117,8 +81,11 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.Schedule) (*pb.Sche
 	//gettting current hour
 	hours, _, _ := time.Now().Clock()
 
+
+	//, {"starttime": bson.M{"$lte": hours}}, {"endtime": bson.M{"$gt": hours}}
+
 	//making fulter query where we find the schedule in the time frame for eg : if current timing is 11 o'clock  and we have schedule 9 to 12 then it will be served.
-	filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}, {"starttime": bson.M{"$lte": hours}}, {"endtime": bson.M{"$gt": hours}}}}
+	filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}}}
 
 	//check if document already present
 	findResult := s.SchedularCollection.FindOne(ctx, filter)
@@ -131,7 +98,6 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.Schedule) (*pb.Sche
 	var schedule pb.Schedule
 	err := findResult.Decode(&schedule)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Error in decoding Schedule "))
 	}
 	ts, _ := ptypes.TimestampProto(time.Now())
@@ -150,8 +116,6 @@ func (s *Server) DeleteSchedule(ctx context.Context, req *pb.DeleteScheduleReque
 	hours, _, _ := time.Now().Clock()
 	//making fulter query where we find the schedule in the time frame for eg : if current timing is 11 o'clock  and we have schedule 9 to 12 then it will be served.
 	//filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}, {"starttime": req.GetStartTime()}, {"endtime": req.GetEndTime()}}}
-
-
 
 	// only temp
 	filter := bson.M{"$and": []bson.M{{"brand": req.GetBrand()}, {"vendor": req.GetVendor()}}}
@@ -184,86 +148,10 @@ func (s *Server) RefreshSchedule(ctx context.Context, req *pb.RefreshScheduleReq
 	return &pb.RefreshScheduleResponse{IsSuccessful:true}, nil
 }
 
-func formatString(value string) string {
-	return strings.ToLower(strings.Replace(value, " ", "_", -1))
-}
-
-func pipelineMaker(rowValues *pb.ScheduleRow) mongo.Pipeline {
-	// creating pipes for mongo aggregation
-	pipeline := mongo.Pipeline{}
-
-	pipeline = append(pipeline , bson.D{{"$match", bson.D{{"content.publishState", true}}}})
-
-	if rowValues.RowType == pb.RowType_Editorial {
-		// Adding stages 1
-		pipeline = append(pipeline, bson.D{{"$match", bson.D{{"ref_id", bson.D{{"$in", rowValues.RowTileIds}}}}}})
-
-		//Adding stage 2
-		pipeline = append(pipeline, bson.D{{"$project", bson.D{
-			{"title", "$metadata.title"},
-			{"portrait", "$posters.portrait",},
-			{"poster", "$posters.landscape"},
-			{"contentId", "$ref_id"},
-			{"isDetailPage", "$content.detailPage"},
-			{"packageName", "$content.package"},
-			{"target", "$content.target"},}}})
-
-	} else {
-		var filterArray []bson.E
-		for key, value := range rowValues.RowFilters {
-			if len(value.Values) > 0 {
-				filterArray = append(filterArray, bson.E{key, bson.D{{"$in", value.Values}}})
-			}
-		}
-		// Adding stages 1
-		pipeline = append(pipeline, bson.D{{"$match", filterArray}})
-
-		// making stage 2
-		stage2 := bson.D{{"$group", bson.D{{"_id", bson.D{
-			{"created_at", "$created_at"},
-			{"updated_at", "$updated_at"},
-			{"contentId", "$ref_id"},
-			{"releaseDate", "$metadata.releaseDate"},
-			{"year", "$metadata.year"},
-			{"imdbid", "$metadata.imdbid"},
-			{"rating", "$metadata.rating"},
-			{"viewCount", "$metadata.viewCount"},
-
-		}}, {"contentTile", bson.D{{"$push", bson.D{
-				{"title", "$metadata.title"},
-				{"portrait", "$posters.portrait",},
-				{"poster", "$posters.landscape"},
-				{"contentId", "$ref_id"},
-				{"isDetailPage", "$content.detailPage"},
-				{"packageName", "$content.package"},
-				{"target", "$content.target"},
-				{"releaseDate", "$metadata.releaseDate"},
-				{"year", "$metadata.year"},
-		}}}}}}}
-
-		pipeline = append(pipeline, stage2)
-
-		if rowValues.RowSort != nil {
-			// making stage 3
-			var sortArray []bson.E
-			for key, value := range rowValues.RowSort {
-				sortArray = append(sortArray, bson.E{strings.TrimSpace(strings.Replace(key, "metadata", "_id", -1 )), value})
-			}
-			//stage 3
-			stage3 := bson.D{{"$sort", sortArray}}
-			pipeline = append(pipeline, stage3)
-		}
-	}
-
-	return pipeline
-}
-
 func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) error {
 
 	primeKey := fmt.Sprintf("%s:%s:cloudwalkerPrimePages", formatString(schedule.Vendor), formatString(schedule.Brand))
-	s.ifExitDelete(primeKey)
-	log.Println("Prime Key =============>  ", primeKey)
-
+	ifExitDelete(primeKey, s.RedisConnection)
 
 	//Looping pages
 	for _, pageValue := range schedule.Pages {
@@ -273,7 +161,7 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 													formatString(schedule.Brand),
 													formatString(pageValue.PageName))
 
-		s.ifExitDelete(pageKey)
+		ifExitDelete(pageKey, s.RedisConnection)
 
 
 		// looping carosuel
@@ -282,9 +170,7 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 			carouselKey := fmt.Sprintf("%s:%s:%s:carousel", formatString(schedule.Vendor),
 				formatString(schedule.Brand),
 				formatString(pageValue.PageName))
-			s.ifExitDelete(carouselKey)
-			log.Println("carosuel Key ==================>  ", carouselKey)
-
+			ifExitDelete(carouselKey, s.RedisConnection)
 			// getting carousel
 			for _, carouselValues := range pageValue.Carousel {
 
@@ -304,7 +190,7 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 				result := s.RedisConnection.SAdd(carouselKey, resultByteArray)
 
 				if result.Err() != nil {
-					log.Fatal(result.Err())
+					log.Println(result.Err())
 				}
 			}
 
@@ -318,27 +204,35 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 		// looping rows
 		for _, rowValues := range pageValue.GetRow() {
 
-			rowKey := fmt.Sprintf("%s:%s:%s:%s", formatString(schedule.Vendor),
+			rowKey := fmt.Sprintf("%s:%s:%s:%s:%s", formatString(schedule.Vendor),
 				formatString(schedule.Brand),
 				formatString(pageValue.PageName),
-				formatString(rowValues.RowName))
+				formatString(rowValues.RowName),
+				formatString(rowValues.RowType.String()))
 
-			s.ifExitDelete(rowKey)
+			rowPathSet = append(rowPathSet, fmt.Sprintf("/row/%s/%s/%s/%s/%s", 	formatString(schedule.GetVendor()),
+				formatString(schedule.GetBrand()),
+				formatString(pageValue.GetPageName()),
+				formatString(rowValues.GetRowName()),
+				formatString(rowValues.GetRowType().String())))
+
+
+			ifExitDelete(rowKey, s.RedisConnection)
 			// making stages
 			pipeline := pipelineMaker(rowValues)
 
 			// creating aggregation query
 			tileCur, err := s.TileCollection.Aggregate(context.Background(), pipeline)
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
 			}
 
 			defer tileCur.Close(ctx)
 
 			contentkey := fmt.Sprintf("%s:content", rowKey)
-			s.ifExitDelete(contentkey)
+			ifExitDelete(contentkey, s.RedisConnection)
 
-			for tileCur.Next(context.Background()) {
+			for tileCur.Next(ctx) {
 				var contentTile pb.ContentTile
 				if rowValues.RowType == pb.RowType_Editorial {
 					var temp EditorialTemp
@@ -359,7 +253,25 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 					contentTile.Title = temp.Title
 					contentTile.TileType = pb.TileType_ImageTile
 
-				} else {
+					if contentTile.XXX_Size() > 0 {
+						contentByte, err := proto.Marshal(&contentTile)
+						if err != nil {
+							return  err
+						}
+						for i, v := range rowValues.RowTileIds {
+							if v == contentTile.ContentId {
+								if err = s.RedisConnection.ZAdd(contentkey, redis.Z{
+									Score:  float64(i),
+									Member: contentByte,
+								}).Err() ; err != nil {
+									return err
+								}
+								break
+							}
+						}
+					}
+
+				} else  {
 					var temp Temp
 					err = tileCur.Decode(&temp)
 					if err != nil {
@@ -379,21 +291,19 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 						contentTile.Title = temp.ContentTile[0].Title
 						contentTile.TileType = pb.TileType_ImageTile
 					}
-				}
 
-				if contentTile.XXX_Size() > 0 {
-					contentByte, err := proto.Marshal(&contentTile)
-					if err != nil {
-						return  err
-					}
+					if contentTile.XXX_Size() > 0 {
+						contentByte, err := proto.Marshal(&contentTile)
+						if err != nil {
+							return  err
+						}
 
-					if err = s.RedisConnection.SAdd(contentkey,contentByte).Err(); err != nil {
-						return err
+						if err = s.RedisConnection.SAdd(contentkey,contentByte).Err(); err != nil {
+							return err
+						}
 					}
 				}
 			}
-
-			log.Println("RowKey  ===============> ", rowKey)
 
 			helperRow := pb.Row{
 				RowName:     rowValues.RowName,
@@ -402,23 +312,12 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 				ContentId: contentkey,
 				Shuffle:   rowValues.Shuffle,
 			}
-
-			//log.Println("row proto   ============>  ",helperRow.String())
-
 			resultByteArray, err := proto.Marshal(&helperRow)
 			if err != nil {
 				return  err
 			}
-
-			//log.Println("row bytes ===============> ", resultByteArray)
-
 			//TODO add base Url to it
 			s.RedisConnection.SAdd(rowKey, resultByteArray)
-
-			rowPathSet = append(rowPathSet, fmt.Sprintf("/row/%s/%s/%s/%s", 	formatString(schedule.Vendor),
-																					formatString(schedule.Brand),
-																					formatString(pageValue.PageName),
-																					formatString(rowValues.RowName)))
 		}
 
 		//TODO Pages storing to redis...
@@ -437,9 +336,6 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 																		formatString(schedule.Brand),
 																		formatString(pageValue.PageName)),
 		}
-
-		log.Println("Page Key ===========>   ", pageKey)
-
 		resultByteArray, err = proto.Marshal(&primePageObj)
 		if err != nil {
 			return  err
@@ -454,8 +350,3 @@ func(s Server) RefreshingWorker(schedule *pb.Schedule, ctx context.Context) erro
 	return nil
 }
 
-func (s Server)ifExitDelete(redisKey string)  {
-	if s.RedisConnection.Exists(redisKey).Val() ==  1 {
-		s.RedisConnection.Del(redisKey)
-	}
-}

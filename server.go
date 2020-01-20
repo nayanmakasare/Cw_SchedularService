@@ -14,7 +14,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"log"
@@ -29,12 +28,13 @@ import (
 const (
 	atlasMongoHost          = "mongodb://nayan:tlwn722n@cluster0-shard-00-00-8aov2.mongodb.net:27017,cluster0-shard-00-01-8aov2.mongodb.net:27017,cluster0-shard-00-02-8aov2.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true&w=majority"
 	developmentMongoHost = "mongodb://dev-uni.cloudwalker.tv:6592"
+	//developmentMongoHost = "mongodb://192.168.1.9:27017"
 	schedularMongoHost   = "mongodb://192.168.1.143:27017"
-	schedularRedisHost   = "redis:6379"
-	grpc_port        = ":7764"
-	rest_port		 = ":7765"
-	srvCertFile = "certs/server.crt"
-	srvKeyFile  = "certs/server.key"
+	schedularRedisHost   = ":6379"
+	grpc_port        = ":7775"
+	rest_port		 = ":7776"
+	srvCertFile = "cert/server.crt"
+	srvKeyFile  = "cert/server.key"
 )
 
 // private type for Context keys
@@ -50,7 +50,7 @@ var tileRedis *redis.Client
 // Multiple init() function
 func init() {
 	fmt.Println("Welcome to init() function")
-	scheduleCollection = getMongoCollection("cloudwalker", "schedule", developmentMongoHost)
+	scheduleCollection = getMongoCollection("cloudwalker", "schedule", atlasMongoHost)
 	tileCollection = getMongoCollection("cwtx2devel", "tiles", developmentMongoHost)
 	tileRedis = getRedisClient(schedularRedisHost)
 }
@@ -174,13 +174,13 @@ func startGRPCServer(address, certFile, keyFile string) error {
 	}
 
 	// Create the TLS credentials
-	creds, err := credentials.NewServerTLSFromFile(certFile, keyFile)
-	if err != nil {
-		return fmt.Errorf("could not load TLS keys: %s", err)
-	}
+	//creds, err := credentials.NewServerTLSFromFile(certFile, keyFile)
+	//if err != nil {
+	//	return fmt.Errorf("could not load TLS keys: %s", err)
+	//}
 
 	// Create an array of gRPC options with the credentials
-	_ = []grpc.ServerOption{grpc.Creds(creds), grpc.UnaryInterceptor(unaryInterceptor), grpc.StreamInterceptor(streamAuthIntercept)}
+	//_ = []grpc.ServerOption{grpc.Creds(creds), grpc.UnaryInterceptor(unaryInterceptor), grpc.StreamInterceptor(streamAuthIntercept)}
 
 	// create a gRPC server object
 	//grpcServer := grpc.NewServer(opts...)
@@ -188,7 +188,7 @@ func startGRPCServer(address, certFile, keyFile string) error {
 	// attach the Ping service to the server
 	grpcServer := grpc.NewServer()                    // attach the Ping service to the server
 	pb.RegisterSchedularServiceServer(grpcServer, &s) // start the server
-	log.Printf("starting HTTP/2 gRPC server on %s", address)
+	//log.Printf("starting HTTP/2 gRPC server on %s", address)
 	if err := grpcServer.Serve(lis); err != nil {
 		return fmt.Errorf("failed to serve: %s", err)
 	}
@@ -266,6 +266,6 @@ func main() {
 	}()
 
 	// infinite loop
-	log.Printf("Entering infinite loop")
+	//log.Printf("Entering infinite loop")
 	select {}
 }

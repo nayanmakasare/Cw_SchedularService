@@ -2,7 +2,7 @@
   "swagger": "2.0",
   "info": {
     "title": "SchedularService.proto",
-    "version": "1.0.0"
+    "version": "version not set"
   },
   "consumes": [
     "application/json"
@@ -11,7 +11,7 @@
     "application/json"
   ],
   "paths": {
-    "/createSchedule": {
+    "/schedule/createSchedule": {
       "post": {
         "summary": "Schedular CRUD",
         "operationId": "CreateSchedule",
@@ -38,7 +38,7 @@
         ]
       }
     },
-    "/deleteSchedule": {
+    "/schedule/deleteSchedule": {
       "post": {
         "operationId": "DeleteSchedule",
         "responses": {
@@ -64,7 +64,7 @@
         ]
       }
     },
-    "/getSchedule": {
+    "/schedule/getSchedule": {
       "post": {
         "operationId": "GetSchedule",
         "responses": {
@@ -90,7 +90,7 @@
         ]
       }
     },
-    "/refreshSchedule": {
+    "/schedule/refreshSchedule": {
       "post": {
         "summary": "Refresh manupilation",
         "operationId": "RefreshSchedule",
@@ -117,7 +117,7 @@
         ]
       }
     },
-    "/updateSchedule": {
+    "/schedule/updateSchedule": {
       "post": {
         "operationId": "UpdateSchedule",
         "responses": {
