@@ -28,13 +28,10 @@ import (
 const (
 	atlasMongoHost          = "mongodb://nayan:tlwn722n@cluster0-shard-00-00-8aov2.mongodb.net:27017,cluster0-shard-00-01-8aov2.mongodb.net:27017,cluster0-shard-00-02-8aov2.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true&w=majority"
 	developmentMongoHost = "mongodb://dev-uni.cloudwalker.tv:6592"
-	//developmentMongoHost = "mongodb://192.168.1.9:27017"
 	schedularMongoHost   = "mongodb://192.168.1.143:27017"
 	schedularRedisHost   = ":6379"
 	grpc_port        = ":7775"
 	rest_port		 = ":7776"
-	srvCertFile = "cert/server.crt"
-	srvKeyFile  = "cert/server.key"
 )
 
 // private type for Context keys
@@ -151,9 +148,7 @@ func streamAuthIntercept(
 	info *grpc.StreamServerInfo,
 	handler grpc.StreamHandler,
 ) error {
-
 	// auth using jwt
-
 	if err := auth(stream.Context()); err != nil {
 		return err
 	}
@@ -161,7 +156,7 @@ func streamAuthIntercept(
 	return handler(server, stream)
 }
 
-func startGRPCServer(address, certFile, keyFile string) error {
+func startGRPCServer(address string) error {
 	// create a listener on TCP port
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
@@ -173,18 +168,6 @@ func startGRPCServer(address, certFile, keyFile string) error {
 		tileCollection,
 	}
 
-	// Create the TLS credentials
-	//creds, err := credentials.NewServerTLSFromFile(certFile, keyFile)
-	//if err != nil {
-	//	return fmt.Errorf("could not load TLS keys: %s", err)
-	//}
-
-	// Create an array of gRPC options with the credentials
-	//_ = []grpc.ServerOption{grpc.Creds(creds), grpc.UnaryInterceptor(unaryInterceptor), grpc.StreamInterceptor(streamAuthIntercept)}
-
-	// create a gRPC server object
-	//grpcServer := grpc.NewServer(opts...)
-
 	// attach the Ping service to the server
 	grpcServer := grpc.NewServer()                    // attach the Ping service to the server
 	pb.RegisterSchedularServiceServer(grpcServer, &s) // start the server
@@ -195,18 +178,11 @@ func startGRPCServer(address, certFile, keyFile string) error {
 	return nil
 }
 
-func startRESTServer(address, grpcAddress, certFile string) error {
+func startRESTServer(address, grpcAddress string) error {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	mux := runtime.NewServeMux(runtime.WithIncomingHeaderMatcher(credMatcher),)
-
-	//creds, err := credentials.NewClientTLSFromFile(certFile, "")
-	//if err != nil {
-	//	return fmt.Errorf("could not load TLS certificate: %s", err)
-	//}  // Setup the client gRPC options
-	//
-	//opts := []grpc.DialOption{grpc.WithTransportCredentials(creds),}  // Register ping
 
 	opts := []grpc.DialOption{grpc.WithInsecure()} // Register ping
 
@@ -251,7 +227,7 @@ func main() {
 
 	// fire the gRPC server in a goroutine
 	go func() {
-		err := startGRPCServer(grpc_port, srvCertFile, srvKeyFile)
+		err := startGRPCServer(grpc_port)
 		if err != nil {
 			log.Fatalf("failed to start gRPC server: %s", err)
 		}
@@ -259,7 +235,7 @@ func main() {
 
 	// fire the REST server in a goroutine
 	go func() {
-		err := startRESTServer(rest_port, grpc_port, srvCertFile)
+		err := startRESTServer(rest_port, grpc_port)
 		if err != nil {
 			log.Fatalf("failed to start gRPC server: %s", err)
 		}
